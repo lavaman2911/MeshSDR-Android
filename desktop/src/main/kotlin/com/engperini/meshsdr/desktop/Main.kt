@@ -83,10 +83,10 @@ private fun runServer(args: Array<String>) {
 
 private fun runWindow(args: Array<String>) = application {
     val state = remember { AppState() }
-    LaunchedEffect(Unit) { if ("--connect" in args) state.connect() }
+    LaunchedEffect(Unit) { if (state.autoConnect || "--connect" in args) state.connect() }
     val icon = remember { BitmapPainter(useResource("logo.png", ::loadImageBitmap)) }
     Window(
-        onCloseRequest = { state.disconnect(); exitApplication() },
+        onCloseRequest = { state.close(); exitApplication() },
         title = "MeshSDR",
         icon = icon,
         // Phone-like proportions by default; any size works.
@@ -326,6 +326,23 @@ private fun SettingsBody(state: AppState) {
             Pill(tr("Remove", "Verwijderen"), PillStyle.TEXT) { state.removeCustomKey(name) }
         }
     }
+
+    Section("MeshCore NL • Spraak / TTS")
+    SwitchRow(tr("Automatically read decoded MeshCore group messages", "Lees gedecodeerde MeshCore-groepsberichten automatisch voor"),
+        state.ttsEnabled) { state.setTtsEnabled(it) }
+    SwitchRow(tr("Start receiving when MeshSDR opens", "Start ontvangst wanneer MeshSDR opent"),
+        state.autoConnect) { state.setAutoConnect(it) }
+    Section(tr("Channels to read (* = all; comma-separated)", "Kanalen voorlezen (* = alles; komma-gescheiden)"))
+    TextInput(state.ttsChannelsText, Modifier.fillMaxWidth(), KeyboardType.Text) { state.ttsChannelsText = it }
+    Section(tr("Only this sender (empty = everyone)", "Alleen deze afzender (leeg = iedereen)"))
+    TextInput(state.ttsSenderText, Modifier.fillMaxWidth(), KeyboardType.Text) { state.ttsSenderText = it }
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Pill(tr("Save filters", "Filters opslaan"), PillStyle.TONAL, Modifier.weight(1f)) { state.saveTtsFilters() }
+        Pill(tr("Test Dutch voice", "Test Nederlandse stem"), PillStyle.OUTLINED, Modifier.weight(1f)) { state.testSpeech() }
+    }
+    Text(tr("Linux: install espeak-ng for Dutch speech (sudo apt install espeak-ng). Private group keys are stored locally in the custom channel section above.",
+        "Linux: installeer espeak-ng voor Nederlandse spraak (sudo apt install espeak-ng). Private groepssleutels worden lokaal opgeslagen bij Eigen kanaalsleutels hierboven."),
+        color = Palette.muted, fontSize = 11.sp)
 
     Section(tr("Processing (optional)", "Processing (optioneel)"))
     SwitchRow(tr("Averaging filter when decimating", "Filtro de média na decimação"), state.averaging) { state.changeAveraging(it) }
