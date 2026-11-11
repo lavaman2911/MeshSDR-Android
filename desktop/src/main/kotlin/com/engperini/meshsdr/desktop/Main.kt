@@ -330,6 +330,27 @@ private fun SettingsBody(state: AppState) {
     Section("MeshCore NL • Spraak / TTS")
     SwitchRow(tr("Automatically read decoded MeshCore group messages", "Lees gedecodeerde MeshCore-groepsberichten automatisch voor"),
         state.ttsEnabled) { state.updateTtsEnabled(it) }
+    Section("Spraakengine")
+    ChoiceMenu("Engine", state.ttsEngine, listOf("Azure", "Piper", "Systeem")) { state.selectTtsEngine(it) }
+    ChoiceMenu("Nederlandse stem", state.ttsVoice, listOf(
+        "nl-NL-MaartenNeural", "nl-NL-FennaNeural", "nl-NL-ColetteNeural"
+    )) { state.selectTtsVoice(it) }
+    Section("Azure Speech-instellingen")
+    OutlinedField(
+        value = state.ttsAzureKey,
+        onValueChange = { state.ttsAzureKey = it },
+        label = "Azure Speech subscription key",
+        secret = true,
+        modifier = Modifier.fillMaxWidth()
+    )
+    OutlinedField(
+        value = state.ttsAzureRegion,
+        onValueChange = { state.ttsAzureRegion = it },
+        label = "Azure-regio (bijv. westeurope)",
+        modifier = Modifier.fillMaxWidth()
+    )
+    Pill("Azure-instellingen opslaan", PillStyle.TONAL, Modifier.fillMaxWidth()) { state.saveAzureSettings() }
+    Text("De API-sleutel blijft alleen in het geheugen van deze sessie. Je kunt MESHSDR_AZURE_SPEECH_KEY als omgevingsvariabele instellen om hem bij het starten automatisch te vullen.", color = Palette.muted, fontSize = 11.sp)
     SwitchRow(tr("Start receiving when MeshSDR opens", "Start ontvangst wanneer MeshSDR opent"),
         state.autoConnect) { state.updateAutoConnect(it) }
     Section(tr("Channels to read (* = all; comma-separated)", "Kanalen voorlezen (* = alles; komma-gescheiden)"))
@@ -340,6 +361,7 @@ private fun SettingsBody(state: AppState) {
         Pill(tr("Save filters", "Filters opslaan"), PillStyle.TONAL, Modifier.weight(1f)) { state.saveTtsFilters() }
         Pill(tr("Test Dutch voice", "Test Nederlandse stem"), PillStyle.OUTLINED, Modifier.weight(1f)) { state.testSpeech() }
     }
+    Text(state.ttsStatus, color = Palette.muted, fontSize = 11.sp)
     Text(state.ttsInstallStatus, color = Palette.muted, fontSize = 11.sp)
     Pill(tr("Install Dutch Piper voice", "Nederlandse Piper-stem installeren"), PillStyle.PRIMARY,
         Modifier.fillMaxWidth()) { state.installDutchVoice() }
@@ -471,6 +493,52 @@ private fun Tile(modifier: Modifier, content: @Composable ColumnScope.() -> Unit
 }
 
 @Composable
+@Composable
+private fun ChoiceMenu(label: String, selected: String, options: List<String>, onSelect: (String) -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    Column(Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
+        Text(label, color = Palette.muted, fontSize = 11.sp)
+        Box {
+            OutlinedButton(onClick = { expanded = true }) {
+                Text(selected, color = Palette.text)
+            }
+            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                options.forEach { option ->
+                    DropdownMenuItem(
+                        text = { Text(option) },
+                        onClick = { onSelect(option); expanded = false }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun OutlinedField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    modifier: Modifier = Modifier,
+    secret: Boolean = false
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        label = { Text(label) },
+        singleLine = true,
+        visualTransformation = if (secret) androidx.compose.ui.text.input.PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
+        modifier = modifier,
+        textStyle = MaterialTheme.typography.bodyMedium.copy(color = Palette.text),
+        shape = RoundedCornerShape(14.dp),
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedContainerColor = Palette.surface2, unfocusedContainerColor = Palette.surface2,
+            focusedBorderColor = Palette.accent, unfocusedBorderColor = Palette.outline,
+            cursorColor = Palette.accent
+        )
+    )
+}
+
 private fun Section(text: String) {
     Text(text, color = Palette.muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
         modifier = Modifier.padding(top = 12.dp, bottom = 6.dp))
