@@ -30,8 +30,19 @@ object MeshCoreChannels {
     /** Hashtag channels to try besides Public; set from the app's settings. */
     @Volatile var hashtags: List<Channel> = emptyList()
         private set
+    @Volatile var customChannels: List<Channel> = emptyList()
+        private set
 
     fun hashtag(name: String) = Channel(name, sha256(name.toByteArray(Charsets.UTF_8)).copyOf(16))
+
+    /** Adds an explicitly supplied 16-byte channel key (hex), without logging or exporting it. */
+    @Synchronized fun setCustomChannels(entries: List<Pair<String, String>>) {
+        customChannels = entries.mapNotNull { (name, hex) ->
+            val clean = hex.trim().removePrefix("0x")
+            if (name.isBlank() || clean.length != 32 || clean.any { it.digitToIntOrNull(16) == null }) null
+            else Channel(name.trim(), clean.chunked(2).map { it.toInt(16).toByte() }.toByteArray())
+        }.distinctBy { it.name }
+    }
 
     /** "#test, #brasil" (with or without #) -> normalized text, as stored and shown. */
     fun normalize(text: String): String =
@@ -43,7 +54,7 @@ object MeshCoreChannels {
     }
 
     /** Name of the known channel with this hash, if any. */
-    fun nameFor(hash: Int): String? = (listOf(PUBLIC) + hashtags).firstOrNull { it.hash == hash }?.name
+    fun nameFor(hash: Int): String? = (listOf(PUBLIC) + hashtags + customChannels).firstOrNull { it.hash == hash }?.name
 
     /** Decrypts a GRP_TXT payload with the known channels; null if none matches its MAC. */
     fun decrypt(payload: ByteArray): Message? {
