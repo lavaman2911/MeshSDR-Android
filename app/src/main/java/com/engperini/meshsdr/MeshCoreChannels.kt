@@ -62,7 +62,7 @@ object MeshCoreChannels {
         val hash = payload[0].toInt() and 0xff
         val mac = payload.copyOfRange(1, 3)
         val cipher = payload.copyOfRange(3, payload.size)
-        for (ch in listOf(PUBLIC) + hashtags) {
+        for (ch in listOf(PUBLIC) + hashtags + customChannels) {
             if (ch.hash != hash) continue
             // MeshCore keys the HMAC with the 32-byte secret (16-byte key + zeros): same HMAC as the 16 bytes.
             val hmac = Mac.getInstance("HmacSHA256").apply { init(SecretKeySpec(ch.key, "HmacSHA256")) }.doFinal(cipher)
