@@ -133,6 +133,11 @@ class MainActivity : Activity() {
         profile = LoraProfile.byId(getPreferences(MODE_PRIVATE).getString("profile", null))
         centerHz = getPreferences(MODE_PRIVATE).getLong("frequency", profile.frequencyHz)
         if (profile.protocol == Protocol.GENERIC) profile = LoraProfile.generic(centerHz, genericSf, genericBw)
+        if (profile.id == LoraProfile.MESHCORE_NL.id) {
+            genericSf = genericSf.takeIf { it in LoraProfile.GENERIC_SFS } ?: profile.spreadingFactor
+            genericBw = genericBw.takeIf { it in LoraProfile.GENERIC_BANDWIDTHS } ?: profile.bandwidthHz
+            profile = profile.copy(spreadingFactor = genericSf, bandwidthHz = genericBw)
+        }
         gainTenths = getPreferences(MODE_PRIVATE).getInt("gainTenths", gainTenths)
         ppm = getPreferences(MODE_PRIVATE).getInt("ppm", 0)
         autoRecord = getPreferences(MODE_PRIVATE).getBoolean("autoRecord", false)
@@ -640,14 +645,15 @@ class MainActivity : Activity() {
     private fun selectProfile(p: LoraProfile) {
         profile = p
         getPreferences(MODE_PRIVATE).edit().putString("profile", p.id).apply()
-        updateProfileLabel()
         // The generic profile keeps whatever frequency is being explored.
         if (p.protocol != Protocol.GENERIC) freqInput.setText("%.6f".format(Locale.US, p.frequencyHz / 1e6))
         if (p.id == LoraProfile.MESHCORE_NL.id) {
             genericSf = p.spreadingFactor
             genericBw = p.bandwidthHz
             getPreferences(MODE_PRIVATE).edit().putInt("genericSf", genericSf).putInt("genericBw", genericBw).apply()
+            bwInput.setText(LoraProfile.formatKhz(genericBw))
         }
+        updateProfileLabel()
         log("APP", tr("LoRa profile: ", "Perfil LoRa: ") +
             p.copy(frequencyHz = if (p.protocol == Protocol.GENERIC) centerHz else p.frequencyHz).describe())
         remoteCommand("profile", "id" to p.id)
