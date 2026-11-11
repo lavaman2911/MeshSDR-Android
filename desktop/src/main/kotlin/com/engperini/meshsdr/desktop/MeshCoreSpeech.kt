@@ -4,10 +4,15 @@ import java.io.File
 import java.util.concurrent.LinkedBlockingQueue
 import kotlin.concurrent.thread
 
-/** Non-blocking speech queue. Prefer local Piper Dutch voice, then system TTS fallback. */
+data class AzureSpeechConfig(val key: String, val region: String, val voice: String)
+
+/** Non-blocking speech queue. Azure Neural TTS is preferred; local Piper/system voice is fallback. */
 class MeshCoreSpeech(
     private val piperPython: () -> File?,
-    private val piperModel: () -> File?
+    private val piperModel: () -> File?,
+    private val azureConfig: () -> AzureSpeechConfig?,
+    private val engine: () -> String,
+    private val onStatus: (String) -> Unit
 ) {
     private val queue = LinkedBlockingQueue<String>()
     @Volatile private var closed = false
@@ -17,7 +22,9 @@ class MeshCoreSpeech(
             while (!closed) {
                 val text = try { queue.take() } catch (_: InterruptedException) { break }
                 if (text.isBlank()) continue
-                try { speakNow(text) } catch (_: Exception) { /* keep receiver alive */ }
+                try { speakNow(text) } catch (e: Exception) {
+                    onStatus("TTS-fout: " + (e.message ?: "onbekende fout"))
+                }
             }
         }
     }
@@ -34,17 +41,37 @@ class MeshCoreSpeech(
     }
 
     private fun speakNow(text: String) {
+        if (engine() == "Azure") {
+            val config = azureConfig()
+            if (config == null || config.key.isBlank()) {
+                onStatus("Azure geselecteerd: vul de Speech-sleutel in.")
+            } else {
+                try {
+                    val wav = AzureSpeechTts.synthesize(text, config.key, config.region, config.voice)
+                    try {
+                        playWav(wav)
+                        onStatus("Azure Speech actief • " + config.voice)
+                        return
+                    } finally { wav.delete() }
+                } catch (e: Exception) {
+                    onStatus("Azure-fout: " + (e.message ?: "onbekende fout") + " • lokale fallback")
+                }
+            }
+        }
+
         val python = piperPython()
         val model = piperModel()
         if (python?.isFile == true && model?.isFile == true) {
             try {
                 speakWithPiper(python, model, text)
+                onStatus("Piper lokaal actief")
                 return
-            } catch (_: Exception) {
-                // A damaged or incompatible Piper install must not silence messages.
+            } catch (e: Exception) {
+                onStatus("Piper-fout: " + (e.message ?: "onbekende fout") + " • systeemstem")
             }
         }
         speakWithSystemVoice(text)
+        onStatus("Systeemstem actief")
     }
 
     private fun speakWithPiper(python: File, model: File, text: String) {
@@ -59,7 +86,7 @@ class MeshCoreSpeech(
                 process.destroyForcibly()
                 error("Piper TTS timeout")
             }
-            if (process.exitValue() != 0 || !wav.isFile || wav.length() < 44) error("Piper TTS failed: $output")
+            if (process.exitValue() != 0 || !wav.isFile || wav.length() < 44) error("Piper TTS failed: " + output)
             playWav(wav)
         } finally {
             wav.delete()
