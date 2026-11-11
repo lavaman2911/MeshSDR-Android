@@ -39,6 +39,8 @@ class MeshCoreSpeech {
                 "powershell", "-NoProfile", "-NonInteractive", "-Command",
                 "Add-Type -AssemblyName System.Speech; " +
                     "$" + "s=New-Object System.Speech.Synthesis.SpeechSynthesizer; " +
+                    "$" + "v=" + "$" + "s.GetInstalledVoices() | Where-Object { " + "$" + "_.VoiceInfo.Culture.Name -eq 'nl-NL' } | Select-Object -First 1; " +
+                    "if (" + "$" + "v) { " + "$" + "s.SelectVoice(" + "$" + "v.VoiceInfo.Name) }; " +
                     "$" + "s.Speak([Console]::In.ReadToEnd())"
             )
             os.contains("mac") -> listOf("say", text)
