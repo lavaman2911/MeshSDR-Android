@@ -265,14 +265,15 @@ class MainActivity : Activity() {
         settingsBody.addView(sectionLabel(tr("LoRa profile", "Perfil LoRa")))
         profileLabel = label("", 12f)
         val profileButtons = listOf("Meshtastic BR" to LoraProfile.MESHTASTIC_BR, "MeshCore BR" to LoraProfile.MESHCORE_BR,
-            "Meshtastic US" to LoraProfile.MESHTASTIC_US).map { (label, p) ->
+            "MeshCore NL" to LoraProfile.MESHCORE_NL, "Meshtastic US" to LoraProfile.MESHTASTIC_US).map { (label, p) ->
             chip(label) { selectProfile(p) }.also { profileChips[p.id] = it }
         }
         val genericChip = chip(tr("Generic LoRa", "LoRa genérico")) {
             selectProfile(LoraProfile.generic(centerHz, genericSf, genericBw))
         }.also { profileChips[LoraProfile.GENERIC_ID] = it }
         settingsBody.addView(row(this, profileButtons[0], profileButtons[1], gapDp = 6))
-        settingsBody.addView(row(this, profileButtons[2], genericChip, gapDp = 6), spaced(6))
+        settingsBody.addView(row(this, profileButtons[2], profileButtons[3], gapDp = 6), spaced(6))
+        settingsBody.addView(genericChip, spaced(6))
         settingsBody.addView(profileLabel, spaced(6))
 
         // Generic LoRa: one SF or all at once; the bandwidth is typed next to the frequency.
@@ -534,7 +535,7 @@ class MainActivity : Activity() {
                 "Frequência inválida ou fora da faixa típica R820T: 24–1766 MHz"))
             return
         }
-        if (profile.protocol == Protocol.GENERIC) {
+        if (profile.protocol == Protocol.GENERIC || profile.id == LoraProfile.MESHCORE_NL.id) {
             val khz = bwInput.text.toString().replace(',', '.').toDoubleOrNull()
             val bw = khz?.let { LoraProfile.genericBandwidth(it) }
             if (bw == null) {
@@ -545,7 +546,9 @@ class MainActivity : Activity() {
             if (bw != genericBw) {
                 genericBw = bw
                 getPreferences(MODE_PRIVATE).edit().putInt("genericBw", bw).apply()
-                profile = LoraProfile.generic(centerHz, genericSf, bw)
+                profile = if (profile.id == LoraProfile.MESHCORE_NL.id)
+                    profile.copy(spreadingFactor = genericSf, bandwidthHz = bw)
+                else LoraProfile.generic(centerHz, genericSf, bw)
             }
             bwInput.setText(LoraProfile.formatKhz(bw))
         }
@@ -640,10 +643,16 @@ class MainActivity : Activity() {
         updateProfileLabel()
         // The generic profile keeps whatever frequency is being explored.
         if (p.protocol != Protocol.GENERIC) freqInput.setText("%.6f".format(Locale.US, p.frequencyHz / 1e6))
+        if (p.id == LoraProfile.MESHCORE_NL.id) {
+            genericSf = p.spreadingFactor
+            genericBw = p.bandwidthHz
+            getPreferences(MODE_PRIVATE).edit().putInt("genericSf", genericSf).putInt("genericBw", genericBw).apply()
+        }
         log("APP", tr("LoRa profile: ", "Perfil LoRa: ") +
             p.copy(frequencyHz = if (p.protocol == Protocol.GENERIC) centerHz else p.frequencyHz).describe())
         remoteCommand("profile", "id" to p.id)
-        if (p.protocol == Protocol.GENERIC) remoteCommand("sf", "sf" to p.spreadingFactor)
+        if (p.protocol == Protocol.GENERIC || p.id == LoraProfile.MESHCORE_NL.id)
+            remoteCommand("sf", "sf" to p.spreadingFactor)
         applyFrequency()
         render()
     }
@@ -652,8 +661,19 @@ class MainActivity : Activity() {
         genericSf = sf
         genericBw = bw
         getPreferences(MODE_PRIVATE).edit().putInt("genericSf", sf).putInt("genericBw", bw).apply()
-        selectProfile(LoraProfile.generic(centerHz, sf, bw))
-        receiverStale = true
+        if (profile.id == LoraProfile.MESHCORE_NL.id) {
+            profile = profile.copy(spreadingFactor = sf, bandwidthHz = bw)
+            getPreferences(MODE_PRIVATE).edit().putString("profile", profile.id).apply()
+            updateProfileLabel()
+            remoteCommand("sf", "sf" to sf)
+            remoteCommand("freq", "mhz" to "%.6f".format(Locale.US, centerHz / 1e6),
+                "bw" to LoraProfile.formatKhz(bw))
+            receiverStale = true
+            render()
+        } else {
+            selectProfile(LoraProfile.generic(centerHz, sf, bw))
+            receiverStale = true
+        }
     }
 
     private fun selectLanguage(portuguese: Boolean) {
@@ -670,11 +690,11 @@ class MainActivity : Activity() {
     private fun updateProfileLabel() {
         profileLabel.text = active().describe()
         profileChips.forEach { (id, chip) -> setChipSelected(chip, id == profile.id) }
-        val generic = profile.protocol == Protocol.GENERIC
-        genericBox.visibility = if (generic) View.VISIBLE else View.GONE
-        sfChips.forEach { (sf, chip) -> setChipSelected(chip, generic && sf == profile.spreadingFactor) }
-        bwInput.visibility = if (generic) View.VISIBLE else View.GONE
-        channelLabel.text = if (generic) tr("Frequency (MHz) • bandwidth (kHz)", "Frequência (MHz) • largura de banda (kHz)")
+        val editableRadio = profile.protocol == Protocol.GENERIC || profile.id == LoraProfile.MESHCORE_NL.id
+        genericBox.visibility = if (editableRadio) View.VISIBLE else View.GONE
+        sfChips.forEach { (sf, chip) -> setChipSelected(chip, editableRadio && sf == profile.spreadingFactor) }
+        bwInput.visibility = if (editableRadio) View.VISIBLE else View.GONE
+        channelLabel.text = if (editableRadio) tr("Frequency (MHz) • bandwidth (kHz)", "Frequência (MHz) • largura de banda (kHz)")
             else tr("LoRa channel frequency (MHz)", "Frequência do canal LoRa (MHz)")
         updateSettingsSummary()
     }
@@ -988,11 +1008,11 @@ class MainActivity : Activity() {
 
     /** Sends every setting shown, e.g. the ones changed while the link was down. */
     private fun pushRemoteSettings() {
-        val generic = profile.protocol == Protocol.GENERIC
+        val editableRadio = profile.protocol == Protocol.GENERIC || profile.id == LoraProfile.MESHCORE_NL.id
         remoteCommand("profile", "id" to profile.id)
-        if (generic) remoteCommand("sf", "sf" to genericSf)
+        if (editableRadio) remoteCommand("sf", "sf" to profile.spreadingFactor)
         remoteCommand("freq", "mhz" to "%.6f".format(Locale.US, centerHz / 1e6),
-            "bw" to if (generic) LoraProfile.formatKhz(genericBw) else null)
+            "bw" to if (editableRadio) LoraProfile.formatKhz(profile.bandwidthHz) else null)
         remoteCommand("gain", "gain" to gainTenths)
         remoteCommand("ppm", "ppm" to ppm)
         remoteCommand("avg", "on" to averaging)
