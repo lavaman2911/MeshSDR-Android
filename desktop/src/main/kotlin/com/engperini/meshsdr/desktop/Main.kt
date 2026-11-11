@@ -493,7 +493,6 @@ private fun Tile(modifier: Modifier, content: @Composable ColumnScope.() -> Unit
 }
 
 @Composable
-@Composable
 private fun ChoiceMenu(label: String, selected: String, options: List<String>, onSelect: (String) -> Unit) {
     var expanded by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
@@ -539,6 +538,7 @@ private fun OutlinedField(
     )
 }
 
+@Composable
 private fun Section(text: String) {
     Text(text, color = Palette.muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
         modifier = Modifier.padding(top = 12.dp, bottom = 6.dp))
