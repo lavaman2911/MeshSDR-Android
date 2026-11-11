@@ -340,8 +340,11 @@ private fun SettingsBody(state: AppState) {
         Pill(tr("Save filters", "Filters opslaan"), PillStyle.TONAL, Modifier.weight(1f)) { state.saveTtsFilters() }
         Pill(tr("Test Dutch voice", "Test Nederlandse stem"), PillStyle.OUTLINED, Modifier.weight(1f)) { state.testSpeech() }
     }
-    Text(tr("Linux: install espeak-ng for Dutch speech (sudo apt install espeak-ng). Private group keys are stored locally in the custom channel section above.",
-        "Linux: installeer espeak-ng voor Nederlandse spraak (sudo apt install espeak-ng). Private groepssleutels worden lokaal opgeslagen bij Eigen kanaalsleutels hierboven."),
+    Text(state.ttsInstallStatus, color = Palette.muted, fontSize = 11.sp)
+    Pill(tr("Install Dutch Piper voice", "Nederlandse Piper-stem installeren"), PillStyle.PRIMARY,
+        Modifier.fillMaxWidth()) { state.installDutchVoice() }
+    Text(tr("Piper is installed in MeshSDR's own Python environment and the Dutch voice is stored locally. After installation it works offline. Python 3 and an audio player (Linux: aplay from alsa-utils) are required. If Piper is unavailable, MeshSDR falls back to the system voice.",
+        "Piper wordt in de eigen Python-omgeving van MeshSDR geïnstalleerd en de Nederlandse stem wordt lokaal opgeslagen. Daarna werkt voorlezen offline. Python 3 en een audiospeler (Linux: aplay uit alsa-utils) zijn vereist. Als Piper niet beschikbaar is, gebruikt MeshSDR de systeemstem."),
         color = Palette.muted, fontSize = 11.sp)
 
     Section(tr("Processing (optional)", "Processing (optioneel)"))
