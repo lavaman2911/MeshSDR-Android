@@ -329,9 +329,9 @@ private fun SettingsBody(state: AppState) {
 
     Section("MeshCore NL • Spraak / TTS")
     SwitchRow(tr("Automatically read decoded MeshCore group messages", "Lees gedecodeerde MeshCore-groepsberichten automatisch voor"),
-        state.ttsEnabled) { state.setTtsEnabled(it) }
+        state.ttsEnabled) { state.updateTtsEnabled(it) }
     SwitchRow(tr("Start receiving when MeshSDR opens", "Start ontvangst wanneer MeshSDR opent"),
-        state.autoConnect) { state.setAutoConnect(it) }
+        state.autoConnect) { state.updateAutoConnect(it) }
     Section(tr("Channels to read (* = all; comma-separated)", "Kanalen voorlezen (* = alles; komma-gescheiden)"))
     TextInput(state.ttsChannelsText, Modifier.fillMaxWidth(), KeyboardType.Text) { state.ttsChannelsText = it }
     Section(tr("Only this sender (empty = everyone)", "Alleen deze afzender (leeg = iedereen)"))
