@@ -23,7 +23,31 @@ object XttsVoiceInstaller {
         return File(File(dataDirectory(), "runtime"), bin)
     }
 
-    fun isInstalled() = ttsCommand().isFile
+    fun workerFile(): File {
+        val file = File(dataDirectory(), "xtts_worker.py")
+        if (!file.isFile) file.writeText(WORKER_SCRIPT, Charsets.UTF_8)
+        return file
+    }
+
+    fun isInstalled() = pythonFile().isFile && ttsCommand().isFile
+
+    private val WORKER_SCRIPT = """
+import sys, base64, os
+os.environ.setdefault("COQUI_TOS_AGREED", "1")
+from TTS.api import TTS
+engine = TTS("tts_models/multilingual/multi-dataset/xtts_v2", progress_bar=False).to("cpu")
+print("READY", flush=True)
+for line in sys.stdin:
+    try:
+        text64, speaker64, path64 = line.rstrip("\\n").split("|", 2)
+        text = base64.b64decode(text64).decode("utf-8")
+        speaker = base64.b64decode(speaker64).decode("utf-8")
+        path = base64.b64decode(path64).decode("utf-8")
+        engine.tts_to_file(text=text, file_path=path, speaker=speaker, language="nl", split_sentences=True)
+        print("OK", flush=True)
+    except Exception as exc:
+        print("ERR\\t" + str(exc).replace("\\n", " ")[:500], flush=True)
+"""
 
     fun install(progress: (String) -> Unit) {
         val data = dataDirectory()
