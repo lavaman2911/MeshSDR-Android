@@ -104,7 +104,7 @@ private fun App(state: AppState, logo: BitmapPainter) {
     BoxWithConstraints(Modifier.fillMaxSize().background(Palette.background)) {
         val windowHeight = maxHeight
         Column(
-            Modifier.align(Alignment.TopCenter).widthIn(max = 560.dp).fillMaxHeight()
+            Modifier.align(Alignment.TopCenter).fillMaxWidth().fillMaxHeight()
                 .padding(horizontal = 16.dp, vertical = 12.dp)
         ) {
             Header(state, logo)
