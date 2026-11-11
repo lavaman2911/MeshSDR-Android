@@ -84,9 +84,9 @@ class AppState(private val keepTrying: Boolean = false) {
         private set
     var ttsChannelsText by mutableStateOf("*")
     var ttsSenderText by mutableStateOf("")
-    var ttsEngine by mutableStateOf(prefs.get("ttsEngine", "XTTS"))
+    var ttsEngine by mutableStateOf(prefs.get("ttsEngine", "XTTS").takeIf { it == "Systeem" } ?: "XTTS")
         private set
-    var ttsVoice by mutableStateOf(prefs.get("ttsVoice", "Andrew Chipper"))
+    var ttsVoice by mutableStateOf(prefs.get("ttsVoice", "Andrew Chipper").takeIf { it in listOf("Andrew Chipper", "Baldur Sanjin", "Daisy Studious", "Ana Florence") } ?: "Andrew Chipper")
         private set
     var ttsStatus by mutableStateOf("XTTS v2 lokaal • Nederlands")
         private set
