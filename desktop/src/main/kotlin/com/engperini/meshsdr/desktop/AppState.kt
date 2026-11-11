@@ -278,12 +278,12 @@ class AppState(private val keepTrying: Boolean = false) {
         loadCustomKeys()
     }
 
-    fun setAutoConnect(on: Boolean) {
+    fun updateAutoConnect(on: Boolean) {
         autoConnect = on
         prefs.putBoolean("autoConnect", on)
     }
 
-    fun setTtsEnabled(on: Boolean) {
+    fun updateTtsEnabled(on: Boolean) {
         ttsEnabled = on
         prefs.putBoolean("ttsEnabled", on)
         if (!on) speech.clear()
