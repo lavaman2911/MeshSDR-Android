@@ -80,6 +80,14 @@ class AppState(private val keepTrying: Boolean = false) {
     var customKeySummary by mutableStateOf("")
     val customKeyNames = mutableStateListOf<String>()
     val jsonMessages = mutableStateListOf<String>()
+    var ttsEnabled by mutableStateOf(true)
+        private set
+    var ttsChannelsText by mutableStateOf("*")
+    var ttsSenderText by mutableStateOf("")
+    var autoConnect by mutableStateOf(true)
+        private set
+    private val speech = MeshCoreSpeech()
+    private val spokenIds = LinkedHashSet<String>()
 
     var status by mutableStateOf(LinkStatus.DISCONNECTED)
         private set
@@ -131,7 +139,11 @@ class AppState(private val keepTrying: Boolean = false) {
         Lang.portuguese = portuguese
         genericSf = prefs.getInt("genericSf", genericSf)
         genericBw = prefs.getInt("genericBw", genericBw).takeIf { it in LoraProfile.GENERIC_BANDWIDTHS } ?: 125_000
-        profile = LoraProfile.byId(prefs.get("profile", null))
+        profile = if (prefs.get("profile", null) == null) LoraProfile.MESHCORE_NL else LoraProfile.byId(prefs.get("profile", null))
+        autoConnect = prefs.getBoolean("autoConnect", true)
+        ttsEnabled = prefs.getBoolean("ttsEnabled", true)
+        ttsChannelsText = prefs.get("ttsChannels", "*")
+        ttsSenderText = prefs.get("ttsSender", "")
         centerHz = prefs.getLong("frequency", profile.frequencyHz)
         if (profile.protocol == Protocol.GENERIC) profile = LoraProfile.generic(centerHz, genericSf, genericBw)
         gainTenths = prefs.getInt("gainTenths", gainTenths)
@@ -264,6 +276,52 @@ class AppState(private val keepTrying: Boolean = false) {
         val rows = prefs.get("customChannelKeys", "").split("\n").filter { it.contains("|") && it.substringBefore("|") != name }
         prefs.put("customChannelKeys", rows.joinToString("\n"))
         loadCustomKeys()
+    }
+
+    fun setAutoConnect(on: Boolean) {
+        autoConnect = on
+        prefs.putBoolean("autoConnect", on)
+    }
+
+    fun setTtsEnabled(on: Boolean) {
+        ttsEnabled = on
+        prefs.putBoolean("ttsEnabled", on)
+        if (!on) speech.clear()
+    }
+
+    fun saveTtsFilters() {
+        prefs.put("ttsChannels", ttsChannelsText)
+        prefs.put("ttsSender", ttsSenderText)
+    }
+
+    fun testSpeech() {
+        speech.say("Mesh SDR. Spraaktest. Nederlandse tekst naar spraak werkt.")
+    }
+
+    private fun maybeSpeakMeshCore(frame: LoraFrame) {
+        if (!ttsEnabled || !frame.verified || profile.protocol != Protocol.MESHCORE) return
+        val packet = com.engperini.meshsdr.MeshCorePacket.parse(frame.bytes) ?: return
+        if (packet.payloadType != com.engperini.meshsdr.MeshCorePacket.TYPE_GRP_TXT) return
+        val message = MeshCoreChannels.decrypt(packet.payload) ?: return
+        val sender = message.text.substringBefore(":", "").trim()
+        val body = message.text.substringAfter(":", "").trim()
+        if (sender.isEmpty() || body.isEmpty()) return
+        val wantedChannels = ttsChannelsText.split(",", ";", "\n").map { it.trim() }.filter { it.isNotEmpty() }
+        if (wantedChannels.isNotEmpty() && "*" !in wantedChannels && message.channel !in wantedChannels) return
+        val senderFilter = ttsSenderText.trim()
+        if (senderFilter.isNotEmpty() && !sender.contains(senderFilter, ignoreCase = true)) return
+        val id = "${message.channel}|${message.timestamp}|${message.text}"
+        synchronized(spokenIds) {
+            if (!spokenIds.add(id)) return
+            while (spokenIds.size > 500) spokenIds.remove(spokenIds.first())
+        }
+        speech.say("Bericht op kanaal ${message.channel}, van ${sender}: ${body}")
+    }
+
+    fun close() {
+        disconnect()
+        setRemoteScreen(false, persist = false)
+        speech.close()
     }
 
     fun changeAutoRecord(on: Boolean) {
@@ -455,6 +513,7 @@ class AppState(private val keepTrying: Boolean = false) {
     private fun onFrame(frame: LoraFrame) {
         if (frame.verified) decoded++ else detections++
         val text = frame.describe(active(), ppm)
+        maybeSpeakMeshCore(frame)
         val timestamp = synchronized(timeFormat) { timeFormat.format(Date(now())) }
         val line = "[$timestamp] $text"
         val json = """{"event":"lora_frame","timestamp":${jsonString(timestamp)},"verified":${frame.verified},"status":${frame.status},"byte_count":${frame.bytes.size},"text":${jsonString(text)}}"""
