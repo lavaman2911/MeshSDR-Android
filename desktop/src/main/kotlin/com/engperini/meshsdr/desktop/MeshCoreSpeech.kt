@@ -4,13 +4,10 @@ import java.io.File
 import java.util.concurrent.LinkedBlockingQueue
 import kotlin.concurrent.thread
 
-data class AzureSpeechConfig(val key: String, val region: String, val voice: String)
-
-/** Non-blocking speech queue. Azure Neural TTS is preferred; local Piper/system voice is fallback. */
+/** Serial speech queue using local XTTS v2 or the operating-system voice. */
 class MeshCoreSpeech(
-    private val piperPython: () -> File?,
-    private val piperModel: () -> File?,
-    private val azureConfig: () -> AzureSpeechConfig?,
+    private val ttsCommand: () -> File,
+    private val voice: () -> String,
     private val engine: () -> String,
     private val onStatus: (String) -> Unit
 ) {
@@ -34,66 +31,42 @@ class MeshCoreSpeech(
     }
 
     fun clear() = queue.clear()
-
-    fun close() {
-        closed = true
-        queue.clear()
-    }
+    fun close() { closed = true; queue.clear() }
 
     private fun speakNow(text: String) {
-        if (engine() == "Azure") {
-            val config = azureConfig()
-            if (config == null || config.key.isBlank()) {
-                onStatus("Azure geselecteerd: vul de Speech-sleutel in.")
-            } else {
-                try {
-                    val wav = AzureSpeechTts.synthesize(text, config.key, config.region, config.voice)
-                    try {
-                        playWav(wav)
-                        onStatus("Azure Speech actief • " + config.voice)
-                        return
-                    } finally { wav.delete() }
-                } catch (e: Exception) {
-                    onStatus("Azure-fout: " + (e.message ?: "onbekende fout") + " • lokale fallback")
-                }
-            }
+        if (engine() == "Systeem") {
+            speakWithSystemVoice(text)
+            onStatus("Systeemstem actief")
+            return
         }
-
-        if (engine() == "Piper") {
-            val python = piperPython()
-            val model = piperModel()
-            if (python?.isFile == true && model?.isFile == true) {
-                try {
-                    speakWithPiper(python, model, text)
-                    onStatus("Piper lokaal actief")
-                    return
-                } catch (e: Exception) {
-                    onStatus("Piper-fout: " + (e.message ?: "onbekende fout") + " • systeemstem")
-                }
-            } else {
-                onStatus("Piper is nog niet geïnstalleerd • systeemstem als fallback")
-            }
+        val command = ttsCommand()
+        if (!command.isFile) {
+            onStatus("XTTS v2 is nog niet geïnstalleerd. Klik op ‘XTTS v2 installeren’.")
+            return
         }
-        speakWithSystemVoice(text)
-        onStatus("Systeemstem actief")
-    }
-
-    private fun speakWithPiper(python: File, model: File, text: String) {
-        val wav = File.createTempFile("meshsdr-tts-", ".wav")
+        val wav = File.createTempFile("meshsdr-xtts-", ".wav")
+        val log = File.createTempFile("meshsdr-xtts-", ".log")
         try {
             val process = ProcessBuilder(
-                python.absolutePath, "-m", "piper", "-m", model.absolutePath, "-f", wav.absolutePath
-            ).redirectErrorStream(true).start()
-            process.outputStream.bufferedWriter(Charsets.UTF_8).use { it.write(text) }
-            val output = process.inputStream.bufferedReader().use { it.readText() }
-            if (!process.waitFor(90, java.util.concurrent.TimeUnit.SECONDS)) {
+                command.absolutePath,
+                "--model_name", "tts_models/multilingual/multi-dataset/xtts_v2",
+                "--text", text,
+                "--speaker_idx", voice(),
+                "--language_idx", "nl",
+                "--out_path", wav.absolutePath
+            ).redirectErrorStream(true).redirectOutput(log).start()
+            if (!process.waitFor(180, java.util.concurrent.TimeUnit.SECONDS)) {
                 process.destroyForcibly()
-                error("Piper TTS timeout")
+                error("XTTS v2 duurde te lang.")
             }
-            if (process.exitValue() != 0 || !wav.isFile || wav.length() < 44) error("Piper TTS failed: " + output)
+            if (process.exitValue() != 0 || !wav.isFile || wav.length() < 44) {
+                error("XTTS v2 mislukt: " + log.readText().takeLast(500))
+            }
             playWav(wav)
+            onStatus("XTTS v2 actief • " + voice() + " • lokaal")
         } finally {
             wav.delete()
+            log.delete()
         }
     }
 
@@ -131,8 +104,8 @@ class MeshCoreSpeech(
             )
             os.contains("mac") -> listOf("say", text)
             else -> {
-                val engine = sequenceOf("espeak-ng", "espeak").firstOrNull { executableExists(it) } ?: return
-                listOf(engine, "-v", "nl", text)
+                val systemTts = sequenceOf("espeak-ng", "espeak").firstOrNull { executableExists(it) } ?: return
+                listOf(systemTts, "-v", "nl", text)
             }
         }
         val process = ProcessBuilder(command).redirectErrorStream(true).start()
