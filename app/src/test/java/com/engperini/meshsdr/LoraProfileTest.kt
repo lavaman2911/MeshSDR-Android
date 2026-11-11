@@ -30,6 +30,22 @@ class LoraProfileTest {
     @Test fun decimationGivesTwoSamplesPerChip() {
         assertEquals(2, LoraProfile.decimation(LoraProfile.MESHTASTIC_BR))
         assertEquals(8, LoraProfile.decimation(LoraProfile.MESHCORE_BR))
+        assertEquals(8, LoraProfile.decimation(LoraProfile.MESHCORE_NL))
+    }
+
+    @Test fun meshcoreNetherlandsProfileHasExpectedDefaultsAndEditableRadioSettings() {
+        val nl = LoraProfile.byId("meshcore-nl")
+        assertEquals(869_618_000L, nl.frequencyHz)
+        assertEquals(7, nl.spreadingFactor)
+        assertEquals(62_500, nl.bandwidthHz)
+        assertEquals(4, nl.codingRate)
+        assertEquals(0x12, nl.syncWord)
+        assertEquals(Protocol.MESHCORE, nl.protocol)
+        val custom = nl.copy(frequencyHz = 869_525_000L, spreadingFactor = 9, bandwidthHz = 125_000)
+        assertEquals(869_525_000L, custom.frequencyHz)
+        assertEquals(9, custom.spreadingFactor)
+        assertEquals(125_000, custom.bandwidthHz)
+        assertEquals(Protocol.MESHCORE, custom.protocol)
     }
 
     @Test fun describesUndecodedDetections() {
