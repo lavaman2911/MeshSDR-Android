@@ -54,7 +54,10 @@ class MeshCoreSpeech(
                 "--speaker_idx", voice(),
                 "--language_idx", "nl",
                 "--out_path", wav.absolutePath
-            ).redirectErrorStream(true).redirectOutput(log).start()
+            ).redirectErrorStream(true).redirectOutput(log).apply {
+                environment()["TTS_HOME"] = File(XttsVoiceInstaller.dataDirectory(), "models").absolutePath
+                environment()["COQUI_TOS_AGREED"] = "1"
+            }.start()
             if (!process.waitFor(180, java.util.concurrent.TimeUnit.SECONDS)) {
                 process.destroyForcibly()
                 error("XTTS v2 duurde te lang.")
