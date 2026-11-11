@@ -249,6 +249,13 @@ private fun SettingsBody(state: AppState) {
         Chip(tr("Generic LoRa", "LoRa genérico"), generic, Modifier.weight(1f)) { state.selectGenericProfile() }
     }
     Spacer(Modifier.height(6.dp))
+    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Chip("MeshCore NL 🇳🇱", state.profile.id == LoraProfile.MESHCORE_NL.id, Modifier.weight(1f)) {
+            state.selectProfile(LoraProfile.MESHCORE_NL)
+        }
+        Spacer(Modifier.weight(1f))
+    }
+    Spacer(Modifier.height(6.dp))
     Text(state.active().describe(), color = Palette.muted, fontSize = 12.sp)
 
     if (generic) {
