@@ -95,6 +95,8 @@ class AppState(private val keepTrying: Boolean = false) {
         private set
     /** Prints every log line, for `--server` under systemd (journalctl). */
     var echoLogs = false
+    /** Emit one machine-readable JSON line for every LoRa frame, for live downstream consumers. */
+    var echoMessages = false
 
     @Volatile private var link: LinkServer? = null
     /**
@@ -398,10 +400,31 @@ class AppState(private val keepTrying: Boolean = false) {
         }
     }
 
+    private fun jsonString(value: String): String = buildString {
+        append('"')
+        value.forEach { ch ->
+            when (ch) {
+                '"' -> append("\\\"")
+                '\\' -> append("\\\\")
+                '\n' -> append("\\n")
+                '\r' -> append("\\r")
+                '\t' -> append("\\t")
+                else -> if (ch.code < 0x20) append("\\u%04x".format(ch.code)) else append(ch)
+            }
+        }
+        append('"')
+    }
     private fun onFrame(frame: LoraFrame) {
         if (frame.verified) decoded++ else detections++
         val text = frame.describe(active(), ppm)
-        val line = "[${synchronized(timeFormat) { timeFormat.format(Date(now())) }}] $text"
+        val timestamp = synchronized(timeFormat) { timeFormat.format(Date(now())) }
+        val line = "[$timestamp] $text"
+        if (echoMessages) {
+            // JSON Lines keeps stdout useful for scripts, SOS classification and future TTS.
+            stdout.println(
+                """{"event":"lora_frame","timestamp":${jsonString(timestamp)},"verified":${frame.verified},"status":${frame.status},"byte_count":${frame.bytes.size},"text":${jsonString(text)}}"""
+            )
+        }
         link?.onMessage(line)
         messages.add(line)
         while (messages.size > 200) messages.removeAt(0)
