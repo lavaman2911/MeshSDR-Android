@@ -96,7 +96,8 @@ class AppState(private val keepTrying: Boolean = false) {
         private set
     @Volatile private var ttsInstalling = false
     private val speech = MeshCoreSpeech(
-        { XttsVoiceInstaller.ttsCommand() },
+        { XttsVoiceInstaller.pythonFile() },
+        { XttsVoiceInstaller.workerFile() },
         { ttsVoice },
         { ttsEngine },
         { message -> SwingUtilities.invokeLater { ttsStatus = message } }
