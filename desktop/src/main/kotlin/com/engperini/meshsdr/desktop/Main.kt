@@ -327,22 +327,55 @@ private fun SettingsBody(state: AppState) {
         }
     }
 
-    Section("MeshCore NL • Spraak / TTS")
-    SwitchRow(tr("Automatically read decoded MeshCore group messages", "Lees gedecodeerde MeshCore-groepsberichten automatisch voor"),
-        state.ttsEnabled) { state.updateTtsEnabled(it) }
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp))
+            .background(Palette.surface2).border(1.dp, Palette.outline, RoundedCornerShape(18.dp))
+            .padding(14.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("MeshCore • Spraakmeldingen", color = Palette.text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                Text("Lokale Nederlandse AI-spraak, zonder cloud of API-key", color = Palette.muted, fontSize = 11.sp)
+            }
+            Text("OFFLINE", color = Palette.green, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+        }
+        Spacer(Modifier.height(8.dp))
+        SwitchRow("Berichten automatisch voorlezen", state.ttsEnabled) { state.updateTtsEnabled(it) }
+        Section("Spraakengine")
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Chip("XTTS v2 • lokaal", state.ttsEngine == "XTTS", Modifier.weight(1f)) { state.selectTtsEngine("XTTS") }
+            Chip("Systeemstem", state.ttsEngine == "Systeem", Modifier.weight(1f)) { state.selectTtsEngine("Systeem") }
+        }
+        if (state.ttsEngine == "XTTS") {
+            Section("Nederlandse stem")
+            ChoiceMenu("Stemprofiel", state.ttsVoice, listOf(
+                "Andrew Chipper", "Baldur Sanjin", "Daisy Studious", "Ana Florence"
+            )) { state.selectTtsVoice(it) }
+            Text("XTTS v2 draait lokaal. De eerste installatie downloadt Python-pakketten en het spraakmodel; daarna werkt voorlezen offline. De modeldownload is groot en CPU-spraak kan even duren. Het model valt onder de Coqui Public Model License; controleer de voorwaarden voor gebruik.",
+                color = Palette.muted, fontSize = 11.sp)
+            Spacer(Modifier.height(8.dp))
+            Pill(if (state.ttsInstallStatus.contains("geïnstalleerd") || state.ttsInstallStatus.contains("klaar")) "XTTS v2 geïnstalleerd" else "XTTS v2 installeren",
+                PillStyle.PRIMARY, Modifier.fillMaxWidth()) { state.installDutchVoice() }
+        } else {
+            Text("Gebruikt de Nederlandse stem die op dit besturingssysteem beschikbaar is.", color = Palette.muted, fontSize = 11.sp)
+        }
+        Spacer(Modifier.height(8.dp))
+        Text(state.ttsInstallStatus, color = Palette.muted, fontSize = 11.sp)
+        Text(state.ttsStatus, color = if (state.ttsStatus.contains("fout", true)) Palette.red else Palette.green, fontSize = 11.sp)
+        Spacer(Modifier.height(8.dp))
+        Pill("Test stem", PillStyle.OUTLINED, Modifier.fillMaxWidth()) { state.testSpeech() }
+        Divider(color = Palette.outline, modifier = Modifier.padding(vertical = 10.dp))
+        Section("Voorleesfilters")
+        Text("Kanalen (* = alles, komma-gescheiden)", color = Palette.muted, fontSize = 11.sp)
+        TextInput(state.ttsChannelsText, Modifier.fillMaxWidth(), KeyboardType.Text) { state.ttsChannelsText = it }
+        Spacer(Modifier.height(6.dp))
+        Text("Alleen afzender (leeg = iedereen)", color = Palette.muted, fontSize = 11.sp)
+        TextInput(state.ttsSenderText, Modifier.fillMaxWidth(), KeyboardType.Text) { state.ttsSenderText = it }
+        Spacer(Modifier.height(8.dp))
+        Pill("Voorleesfilters opslaan", PillStyle.TONAL, Modifier.fillMaxWidth()) { state.saveTtsFilters() }
+    }
     SwitchRow(tr("Start receiving when MeshSDR opens", "Start ontvangst wanneer MeshSDR opent"),
         state.autoConnect) { state.updateAutoConnect(it) }
-    Section(tr("Channels to read (* = all; comma-separated)", "Kanalen voorlezen (* = alles; komma-gescheiden)"))
-    TextInput(state.ttsChannelsText, Modifier.fillMaxWidth(), KeyboardType.Text) { state.ttsChannelsText = it }
-    Section(tr("Only this sender (empty = everyone)", "Alleen deze afzender (leeg = iedereen)"))
-    TextInput(state.ttsSenderText, Modifier.fillMaxWidth(), KeyboardType.Text) { state.ttsSenderText = it }
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Pill(tr("Save filters", "Filters opslaan"), PillStyle.TONAL, Modifier.weight(1f)) { state.saveTtsFilters() }
-        Pill(tr("Test Dutch voice", "Test Nederlandse stem"), PillStyle.OUTLINED, Modifier.weight(1f)) { state.testSpeech() }
-    }
-    Text(tr("Linux: install espeak-ng for Dutch speech (sudo apt install espeak-ng). Private group keys are stored locally in the custom channel section above.",
-        "Linux: installeer espeak-ng voor Nederlandse spraak (sudo apt install espeak-ng). Private groepssleutels worden lokaal opgeslagen bij Eigen kanaalsleutels hierboven."),
-        color = Palette.muted, fontSize = 11.sp)
 
     Section(tr("Processing (optional)", "Processing (optioneel)"))
     SwitchRow(tr("Averaging filter when decimating", "Filtro de média na decimação"), state.averaging) { state.changeAveraging(it) }
@@ -464,6 +497,52 @@ private fun Tile(modifier: Modifier, content: @Composable ColumnScope.() -> Unit
         modifier.fillMaxHeight().clip(RoundedCornerShape(16.dp)).background(Palette.surface)
             .border(1.dp, Palette.outline, RoundedCornerShape(16.dp)).padding(horizontal = 12.dp, vertical = 8.dp),
         content = content
+    )
+}
+
+@Composable
+private fun ChoiceMenu(label: String, selected: String, options: List<String>, onSelect: (String) -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    Column(Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
+        Text(label, color = Palette.muted, fontSize = 11.sp)
+        Box {
+            OutlinedButton(onClick = { expanded = true }) {
+                Text(selected, color = Palette.text)
+            }
+            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                options.forEach { option ->
+                    DropdownMenuItem(
+                        text = { Text(option) },
+                        onClick = { onSelect(option); expanded = false }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun OutlinedField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    modifier: Modifier = Modifier,
+    secret: Boolean = false
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        label = { Text(label) },
+        singleLine = true,
+        visualTransformation = if (secret) androidx.compose.ui.text.input.PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
+        modifier = modifier,
+        textStyle = MaterialTheme.typography.bodyMedium.copy(color = Palette.text),
+        shape = RoundedCornerShape(14.dp),
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedContainerColor = Palette.surface2, unfocusedContainerColor = Palette.surface2,
+            focusedBorderColor = Palette.accent, unfocusedBorderColor = Palette.outline,
+            cursorColor = Palette.accent
+        )
     )
 }
 

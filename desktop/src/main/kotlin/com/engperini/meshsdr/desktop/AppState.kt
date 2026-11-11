@@ -84,9 +84,24 @@ class AppState(private val keepTrying: Boolean = false) {
         private set
     var ttsChannelsText by mutableStateOf("*")
     var ttsSenderText by mutableStateOf("")
+    var ttsEngine by mutableStateOf(prefs.get("ttsEngine", "XTTS").takeIf { it == "Systeem" } ?: "XTTS")
+        private set
+    var ttsVoice by mutableStateOf(prefs.get("ttsVoice", "Andrew Chipper").takeIf { it in listOf("Andrew Chipper", "Baldur Sanjin", "Daisy Studious", "Ana Florence") } ?: "Andrew Chipper")
+        private set
+    var ttsStatus by mutableStateOf("XTTS v2 lokaal • Nederlands")
+        private set
     var autoConnect by mutableStateOf(true)
         private set
-    private val speech = MeshCoreSpeech()
+    var ttsInstallStatus by mutableStateOf(if (XttsVoiceInstaller.isInstalled()) "XTTS v2 geïnstalleerd" else "XTTS v2 nog niet geïnstalleerd")
+        private set
+    @Volatile private var ttsInstalling = false
+    private val speech = MeshCoreSpeech(
+        { XttsVoiceInstaller.pythonFile() },
+        { XttsVoiceInstaller.workerFile() },
+        { ttsVoice },
+        { ttsEngine },
+        { message -> SwingUtilities.invokeLater { ttsStatus = message } }
+    )
     private val spokenIds = LinkedHashSet<String>()
 
     var status by mutableStateOf(LinkStatus.DISCONNECTED)
@@ -294,8 +309,39 @@ class AppState(private val keepTrying: Boolean = false) {
         prefs.put("ttsSender", ttsSenderText)
     }
 
+    fun selectTtsEngine(value: String) {
+        ttsEngine = value
+        prefs.put("ttsEngine", value)
+        ttsStatus = if (value == "XTTS") "Lokale XTTS v2 • Nederlands" else "Systeemstem geselecteerd"
+    }
+
+    fun selectTtsVoice(value: String) {
+        ttsVoice = value
+        prefs.put("ttsVoice", value)
+    }
+
+    @Synchronized fun installDutchVoice() {
+        if (ttsInstalling || XttsVoiceInstaller.isInstalled()) {
+            ttsInstallStatus = if (XttsVoiceInstaller.isInstalled()) "XTTS v2 geïnstalleerd" else ttsInstallStatus
+            return
+        }
+        ttsInstalling = true
+        ttsInstallStatus = "Installatie wordt voorbereid…"
+        thread(name = "meshsdr-xtts-install", isDaemon = true) {
+            try {
+                XttsVoiceInstaller.install { status -> SwingUtilities.invokeLater { ttsInstallStatus = status } }
+                SwingUtilities.invokeLater { ttsInstallStatus = "XTTS v2 klaar • werkt offline" }
+                speech.say("De lokale Nederlandse stem is klaar. Dit is een spraaktest.")
+            } catch (e: Exception) {
+                SwingUtilities.invokeLater { ttsInstallStatus = "Installatiefout: ${e.message ?: "onbekende fout"}" }
+            } finally {
+                ttsInstalling = false
+            }
+        }
+    }
+
     fun testSpeech() {
-        speech.say("Mesh SDR. Spraaktest. Nederlandse tekst naar spraak werkt.")
+        speech.say("Dit is een test van MeshSDR. De Nederlandse stem leest berichten duidelijk voor.")
     }
 
     private fun maybeSpeakMeshCore(frame: LoraFrame) {
