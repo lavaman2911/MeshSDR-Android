@@ -90,7 +90,7 @@ private fun runWindow(args: Array<String>) = application {
         title = "MeshSDR",
         icon = icon,
         // Phone-like proportions by default; any size works.
-        state = rememberWindowState(width = 460.dp, height = 900.dp)
+        state = rememberWindowState(width = 1180.dp, height = 820.dp)
     ) {
         MaterialTheme(colorScheme = darkColorScheme(primary = Palette.accent, background = Color.Black)) {
             // Changing the language re-reads every tr() text.
@@ -133,7 +133,18 @@ private fun App(state: AppState, logo: BitmapPainter) {
                 Chip(tr("Technical logs", "Logs técnicos"), state.showLogs, Modifier.weight(1f)) { state.showLogs = true }
             }
             Spacer(Modifier.height(8.dp))
-            Output(state, Modifier.weight(1f))
+            Row(Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Column(Modifier.weight(1f).fillMaxHeight()) {
+                    Text(if (state.showLogs) tr("Technical logs", "Technische logs") else tr("Normal output", "Normale uitvoer"), color = Palette.accent, fontSize = 13.sp)
+                    Spacer(Modifier.height(5.dp))
+                    Output(state, Modifier.weight(1f))
+                }
+                Column(Modifier.weight(1f).fillMaxHeight()) {
+                    Text("JSON output (JSONL)", color = Palette.accent, fontSize = 13.sp)
+                    Spacer(Modifier.height(5.dp))
+                    JsonOutput(state, Modifier.weight(1f))
+                }
+            }
             Spacer(Modifier.height(6.dp))
             val clipboard = LocalClipboardManager.current
             Row {
@@ -364,6 +375,23 @@ private fun Output(state: AppState, modifier: Modifier) {
     }
 }
 
+@Composable
+private fun JsonOutput(state: AppState, modifier: Modifier) {
+    val listState = rememberLazyListState()
+    LaunchedEffect(state.jsonMessages.size) {
+        if (state.jsonMessages.isNotEmpty()) listState.scrollToItem(state.jsonMessages.lastIndex)
+    }
+    Box(modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Palette.output)
+        .border(1.dp, Palette.outline, RoundedCornerShape(16.dp)).padding(horizontal = 12.dp, vertical = 10.dp)) {
+        SelectionContainer {
+            LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
+                itemsIndexed(state.jsonMessages) { _, line ->
+                    Text(line, color = Palette.outputText, fontFamily = FontFamily.Monospace, fontSize = 11.sp, lineHeight = 15.sp)
+                }
+            }
+        }
+    }
+}
 // ---- building blocks, matching the Android app's look ------------------
 
 private enum class PillStyle { PRIMARY, OUTLINED, TONAL, TEXT, ACTIVE }
