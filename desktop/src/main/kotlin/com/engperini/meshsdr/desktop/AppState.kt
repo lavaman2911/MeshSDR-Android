@@ -78,6 +78,7 @@ class AppState(private val keepTrying: Boolean = false) {
     var customKeyName by mutableStateOf("#test")
     var customKeyHex by mutableStateOf("")
     var customKeySummary by mutableStateOf("")
+    val customKeyNames = mutableStateListOf<String>()
     val jsonMessages = mutableStateListOf<String>()
 
     var status by mutableStateOf(LinkStatus.DISCONNECTED)
@@ -238,6 +239,7 @@ class AppState(private val keepTrying: Boolean = false) {
             if (parts.size == 2) parts[0] to parts[1] else null
         }
         MeshCoreChannels.setCustomChannels(entries)
+        customKeyNames.clear(); customKeyNames.addAll(entries.map { it.first })
         customKeySummary = entries.joinToString(", ") { it.first }
     }
 
@@ -252,6 +254,7 @@ class AppState(private val keepTrying: Boolean = false) {
         rows.add("$name|$hex")
         prefs.put("customChannelKeys", rows.joinToString("\n"))
         MeshCoreChannels.setCustomChannels(rows.map { it.substringBefore("|") to it.substringAfter("|") })
+        customKeyNames.clear(); customKeyNames.addAll(rows.map { it.substringBefore("|") })
         customKeySummary = rows.joinToString(", ") { it.substringBefore("|") }
         customKeyHex = ""
         log("APP", tr("Custom MeshCore key saved for $name (key hidden)", "Chave MeshCore personalizada salva para $name (chave oculta)"))
