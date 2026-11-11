@@ -307,14 +307,27 @@ private fun SettingsBody(state: AppState) {
         Pill(tr("Apply", "Aplicar"), PillStyle.TONAL) { state.applyPpm() }
     }
 
-    Section(tr("MeshCore channels to read (Public always; add #hashtags)", "Canais MeshCore para ler (Public sempre; adicione #hashtags)"))
+    Section(tr("MeshCore hashtag channels (derived keys)", "MeshCore hashtag-kanalen (afgeleide sleutels)"))
     Row(verticalAlignment = Alignment.CenterVertically) {
         TextInput(state.hashtagText, Modifier.weight(1f), KeyboardType.Text) { state.hashtagText = it }
         Spacer(Modifier.width(8.dp))
-        Pill(tr("Apply", "Aplicar"), PillStyle.TONAL) { state.applyHashtags() }
+        Pill(tr("Apply", "Toepassen"), PillStyle.TONAL) { state.applyHashtags() }
+    }
+    Section(tr("Custom channel keys (16-byte hex)", "Eigen kanaalsleutels (16-byte hex)"))
+    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+        TextInput(state.customKeyName, Modifier.weight(0.30f), KeyboardType.Text) { state.customKeyName = it }
+        TextInput(state.customKeyHex, Modifier.weight(0.70f), KeyboardType.Ascii) { state.customKeyHex = it }
+        Pill(tr("Add", "Toevoegen"), PillStyle.TONAL) { state.addCustomKey() }
+    }
+    Text(tr("Saved locally: ", "Lokaal opgeslagen: ") + (state.customKeySummary.ifEmpty { tr("none", "geen") }), color = Palette.muted, fontSize = 11.sp)
+    state.customKeyNames.forEach { name ->
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(name, color = Palette.text, modifier = Modifier.weight(1f), fontSize = 12.sp)
+            Pill(tr("Remove", "Verwijderen"), PillStyle.TEXT) { state.removeCustomKey(name) }
+        }
     }
 
-    Section(tr("Processing (optional)", "Processamento (opcional)"))
+    Section(tr("Processing (optional)", "Processing (optioneel)"))
     SwitchRow(tr("Averaging filter when decimating", "Filtro de média na decimação"), state.averaging) { state.changeAveraging(it) }
     SwitchRow(tr("Record IQ automatically on detections (3 s before + after)",
         "Gravar IQ automaticamente nas detecções (3 s antes + depois)"), state.autoRecord) { state.changeAutoRecord(it) }
