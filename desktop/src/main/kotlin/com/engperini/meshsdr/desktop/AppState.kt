@@ -75,6 +75,10 @@ class AppState(private val keepTrying: Boolean = false) {
     var serverText by mutableStateOf("127.0.0.1:1234")
     /** MeshCore hashtag channels to read besides Public (their key comes from the name). */
     var hashtagText by mutableStateOf("")
+    var customKeyName by mutableStateOf("#test")
+    var customKeyHex by mutableStateOf("")
+    var customKeySummary by mutableStateOf("")
+    val jsonMessages = mutableStateListOf<String>()
 
     var status by mutableStateOf(LinkStatus.DISCONNECTED)
         private set
@@ -140,6 +144,7 @@ class AppState(private val keepTrying: Boolean = false) {
         bwText = LoraProfile.formatKhz(genericBw)
         hashtagText = prefs.get("hashtags", "")
         MeshCoreChannels.setHashtags(hashtagText)
+        loadCustomKeys()
         if (prefs.getBoolean("remoteScreen", false)) setRemoteScreen(true)
         log("APP", tr("LoRa profile: ${active().describe()}. Any sync word is accepted and shown.",
             "Perfil LoRa: ${active().describe()}. Qualquer sync word é aceito e mostrado."))
@@ -224,8 +229,38 @@ class AppState(private val keepTrying: Boolean = false) {
         hashtagText = MeshCoreChannels.normalize(hashtagText)
         prefs.put("hashtags", hashtagText)
         MeshCoreChannels.setHashtags(hashtagText)
-        log("APP", tr("MeshCore channels read: Public", "Canais MeshCore lidos: Public") +
-            if (hashtagText.isEmpty()) "" else ", $hashtagText")
+        log("APP", tr("MeshCore channels read: Public", "Canais MeshCore lidos: Public") + if (hashtagText.isEmpty()) "" else ", $hashtagText")
+    }
+
+    private fun loadCustomKeys() {
+        val entries = prefs.get("customChannelKeys", "").split("\n").mapNotNull { row ->
+            val parts = row.split("|", limit = 2)
+            if (parts.size == 2) parts[0] to parts[1] else null
+        }
+        MeshCoreChannels.setCustomChannels(entries)
+        customKeySummary = entries.joinToString(", ") { it.first }
+    }
+
+    fun addCustomKey() {
+        val name = customKeyName.trim().ifEmpty { "#test" }
+        val hex = customKeyHex.trim().removePrefix("0x")
+        if (hex.length != 32 || hex.any { it.digitToIntOrNull(16) == null }) {
+            customKeySummary = tr("Key must be exactly 32 hexadecimal characters (16 bytes)", "Sleutel moet exact 32 hex-tekens zijn (16 bytes)")
+            return
+        }
+        val rows = prefs.get("customChannelKeys", "").split("\n").filter { it.contains("|") && it.substringBefore("|") != name }.toMutableList()
+        rows.add("$name|$hex")
+        prefs.put("customChannelKeys", rows.joinToString("\n"))
+        MeshCoreChannels.setCustomChannels(rows.map { it.substringBefore("|") to it.substringAfter("|") })
+        customKeySummary = rows.joinToString(", ") { it.substringBefore("|") }
+        customKeyHex = ""
+        log("APP", tr("Custom MeshCore key saved for $name (key hidden)", "Chave MeshCore personalizada salva para $name (chave oculta)"))
+    }
+
+    fun removeCustomKey(name: String) {
+        val rows = prefs.get("customChannelKeys", "").split("\n").filter { it.contains("|") && it.substringBefore("|") != name }
+        prefs.put("customChannelKeys", rows.joinToString("\n"))
+        loadCustomKeys()
     }
 
     fun changeAutoRecord(on: Boolean) {
@@ -419,12 +454,10 @@ class AppState(private val keepTrying: Boolean = false) {
         val text = frame.describe(active(), ppm)
         val timestamp = synchronized(timeFormat) { timeFormat.format(Date(now())) }
         val line = "[$timestamp] $text"
-        if (echoMessages) {
-            // JSON Lines keeps stdout useful for scripts, SOS classification and future TTS.
-            stdout.println(
-                """{"event":"lora_frame","timestamp":${jsonString(timestamp)},"verified":${frame.verified},"status":${frame.status},"byte_count":${frame.bytes.size},"text":${jsonString(text)}}"""
-            )
-        }
+        val json = """{"event":"lora_frame","timestamp":${jsonString(timestamp)},"verified":${frame.verified},"status":${frame.status},"byte_count":${frame.bytes.size},"text":${jsonString(text)}}"""
+        jsonMessages.add(json)
+        while (jsonMessages.size > 200) jsonMessages.removeAt(0)
+        if (echoMessages) stdout.println(json)
         link?.onMessage(line)
         messages.add(line)
         while (messages.size > 200) messages.removeAt(0)
