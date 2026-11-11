@@ -59,15 +59,19 @@ class MeshCoreSpeech(
             }
         }
 
-        val python = piperPython()
-        val model = piperModel()
-        if (python?.isFile == true && model?.isFile == true) {
-            try {
-                speakWithPiper(python, model, text)
-                onStatus("Piper lokaal actief")
-                return
-            } catch (e: Exception) {
-                onStatus("Piper-fout: " + (e.message ?: "onbekende fout") + " • systeemstem")
+        if (engine() == "Piper") {
+            val python = piperPython()
+            val model = piperModel()
+            if (python?.isFile == true && model?.isFile == true) {
+                try {
+                    speakWithPiper(python, model, text)
+                    onStatus("Piper lokaal actief")
+                    return
+                } catch (e: Exception) {
+                    onStatus("Piper-fout: " + (e.message ?: "onbekende fout") + " • systeemstem")
+                }
+            } else {
+                onStatus("Piper is nog niet geïnstalleerd • systeemstem als fallback")
             }
         }
         speakWithSystemVoice(text)
