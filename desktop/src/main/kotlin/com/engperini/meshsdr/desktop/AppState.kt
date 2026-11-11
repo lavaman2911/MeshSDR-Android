@@ -86,7 +86,9 @@ class AppState(private val keepTrying: Boolean = false) {
     var ttsSenderText by mutableStateOf("")
     var autoConnect by mutableStateOf(true)
         private set
-    private val speech = MeshCoreSpeech()
+    var ttsInstallStatus by mutableStateOf(if (PiperVoiceInstaller.isInstalled()) "Piper-stem geïnstalleerd" else "Piper-stem niet geïnstalleerd")
+        private set
+    private val speech = MeshCoreSpeech({ PiperVoiceInstaller.pythonFile() }, { PiperVoiceInstaller.modelFile() })
     private val spokenIds = LinkedHashSet<String>()
 
     var status by mutableStateOf(LinkStatus.DISCONNECTED)
@@ -292,6 +294,20 @@ class AppState(private val keepTrying: Boolean = false) {
     fun saveTtsFilters() {
         prefs.put("ttsChannels", ttsChannelsText)
         prefs.put("ttsSender", ttsSenderText)
+    }
+
+    fun installDutchVoice() {
+        if (ttsInstallStatus.contains("bezig", ignoreCase = true)) return
+        ttsInstallStatus = "Installatie bezig…"
+        thread(name = "meshsdr-piper-install", isDaemon = true) {
+            try {
+                PiperVoiceInstaller.install { status -> SwingUtilities.invokeLater { ttsInstallStatus = status } }
+                SwingUtilities.invokeLater { ttsInstallStatus = "Piper-stem geïnstalleerd" }
+                speech.say("De Nederlandse Piper stem is geïnstalleerd. Dit is een spraaktest.")
+            } catch (e: Exception) {
+                SwingUtilities.invokeLater { ttsInstallStatus = "Installatiefout: ${e.message ?: "onbekende fout"}" }
+            }
+        }
     }
 
     fun testSpeech() {
