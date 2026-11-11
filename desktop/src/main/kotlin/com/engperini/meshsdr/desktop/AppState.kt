@@ -84,24 +84,20 @@ class AppState(private val keepTrying: Boolean = false) {
         private set
     var ttsChannelsText by mutableStateOf("*")
     var ttsSenderText by mutableStateOf("")
-    var ttsEngine by mutableStateOf(prefs.get("ttsEngine", "Azure"))
+    var ttsEngine by mutableStateOf(prefs.get("ttsEngine", "XTTS"))
         private set
-    var ttsVoice by mutableStateOf(prefs.get("ttsVoice", "nl-NL-MaartenNeural"))
+    var ttsVoice by mutableStateOf(prefs.get("ttsVoice", "Andrew Chipper"))
         private set
-    var ttsAzureRegion by mutableStateOf(prefs.get("ttsAzureRegion", "westeurope"))
-    /** API key is deliberately session-only; set MESHSDR_AZURE_SPEECH_KEY to prefill it. */
-    var ttsAzureKey by mutableStateOf(System.getenv("MESHSDR_AZURE_SPEECH_KEY") ?: "")
-    var ttsStatus by mutableStateOf("Azure Speech • nl-NL-MaartenNeural")
+    var ttsStatus by mutableStateOf("XTTS v2 lokaal • Nederlands")
         private set
     var autoConnect by mutableStateOf(true)
         private set
-    var ttsInstallStatus by mutableStateOf(if (PiperVoiceInstaller.isInstalled()) "Piper-stem geïnstalleerd" else "Piper-stem niet geïnstalleerd")
+    var ttsInstallStatus by mutableStateOf(if (XttsVoiceInstaller.isInstalled()) "XTTS v2 geïnstalleerd" else "XTTS v2 nog niet geïnstalleerd")
         private set
     @Volatile private var ttsInstalling = false
     private val speech = MeshCoreSpeech(
-        { PiperVoiceInstaller.pythonFile() },
-        { PiperVoiceInstaller.modelFile() },
-        { if (ttsAzureKey.isBlank()) null else AzureSpeechConfig(ttsAzureKey, ttsAzureRegion, ttsVoice) },
+        { XttsVoiceInstaller.ttsCommand() },
+        { ttsVoice },
         { ttsEngine },
         { message -> SwingUtilities.invokeLater { ttsStatus = message } }
     )
@@ -315,6 +311,7 @@ class AppState(private val keepTrying: Boolean = false) {
     fun selectTtsEngine(value: String) {
         ttsEngine = value
         prefs.put("ttsEngine", value)
+        ttsStatus = if (value == "XTTS") "Lokale XTTS v2 • Nederlands" else "Systeemstem geselecteerd"
     }
 
     fun selectTtsVoice(value: String) {
@@ -322,24 +319,18 @@ class AppState(private val keepTrying: Boolean = false) {
         prefs.put("ttsVoice", value)
     }
 
-    fun saveAzureSettings() {
-        prefs.put("ttsAzureRegion", ttsAzureRegion.trim())
-        ttsAzureRegion = ttsAzureRegion.trim()
-        ttsStatus = if (ttsAzureKey.isBlank()) "Vul je Azure Speech-sleutel in." else "Azure ingesteld • " + ttsVoice
-    }
-
     @Synchronized fun installDutchVoice() {
-        if (ttsInstalling || PiperVoiceInstaller.isInstalled()) {
-            ttsInstallStatus = if (PiperVoiceInstaller.isInstalled()) "Piper-stem geïnstalleerd" else ttsInstallStatus
+        if (ttsInstalling || XttsVoiceInstaller.isInstalled()) {
+            ttsInstallStatus = if (XttsVoiceInstaller.isInstalled()) "XTTS v2 geïnstalleerd" else ttsInstallStatus
             return
         }
         ttsInstalling = true
-        ttsInstallStatus = "Installatie bezig…"
-        thread(name = "meshsdr-piper-install", isDaemon = true) {
+        ttsInstallStatus = "Installatie wordt voorbereid…"
+        thread(name = "meshsdr-xtts-install", isDaemon = true) {
             try {
-                PiperVoiceInstaller.install { status -> SwingUtilities.invokeLater { ttsInstallStatus = status } }
-                SwingUtilities.invokeLater { ttsInstallStatus = "Piper-stem geïnstalleerd" }
-                speech.say("De Nederlandse Piper stem is geïnstalleerd. Dit is een spraaktest.")
+                XttsVoiceInstaller.install { status -> SwingUtilities.invokeLater { ttsInstallStatus = status } }
+                SwingUtilities.invokeLater { ttsInstallStatus = "XTTS v2 klaar • werkt offline" }
+                speech.say("De lokale Nederlandse stem is klaar. Dit is een spraaktest.")
             } catch (e: Exception) {
                 SwingUtilities.invokeLater { ttsInstallStatus = "Installatiefout: ${e.message ?: "onbekende fout"}" }
             } finally {
