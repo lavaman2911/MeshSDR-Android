@@ -351,7 +351,7 @@ private fun SettingsBody(state: AppState) {
             ChoiceMenu("Stemprofiel", state.ttsVoice, listOf(
                 "Andrew Chipper", "Baldur Sanjin", "Daisy Studious", "Ana Florence"
             )) { state.selectTtsVoice(it) }
-            Text("XTTS v2 draait lokaal. De eerste installatie downloadt Python-pakketten en het spraakmodel; daarna werkt voorlezen offline. De modeldownload is groot en CPU-spraak kan even duren.",
+            Text("XTTS v2 draait lokaal. De eerste installatie downloadt Python-pakketten en het spraakmodel; daarna werkt voorlezen offline. De modeldownload is groot en CPU-spraak kan even duren. Het model valt onder de Coqui Public Model License; controleer de voorwaarden voor gebruik.",
                 color = Palette.muted, fontSize = 11.sp)
             Spacer(Modifier.height(8.dp))
             Pill(if (state.ttsInstallStatus.contains("geïnstalleerd") || state.ttsInstallStatus.contains("klaar")) "XTTS v2 geïnstalleerd" else "XTTS v2 installeren",
