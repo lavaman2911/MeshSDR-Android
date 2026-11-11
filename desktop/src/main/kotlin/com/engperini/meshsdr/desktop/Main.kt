@@ -65,14 +65,15 @@ private object Palette {
  * reconnects if the dongle goes away, and a phone is its screen ([LinkServer]).
  */
 fun main(args: Array<String>) {
-    if ("--server" in args) runServer() else runWindow(args)
+    if ("--server" in args) runServer(args) else runWindow(args)
 }
 
-private fun runServer() {
+private fun runServer(args: Array<String>) {
     System.setProperty("java.awt.headless", "true")
     SwingUtilities.invokeAndWait {
         val state = AppState(keepTrying = true)
-        state.echoLogs = true
+        state.echoMessages = "--stdout-messages" in args
+        state.echoLogs = !state.echoMessages
         state.setRemoteScreen(true, persist = false)
         state.connect()
     }
@@ -89,7 +90,7 @@ private fun runWindow(args: Array<String>) = application {
         title = "MeshSDR",
         icon = icon,
         // Phone-like proportions by default; any size works.
-        state = rememberWindowState(width = 460.dp, height = 900.dp)
+        state = rememberWindowState(width = 1180.dp, height = 820.dp)
     ) {
         MaterialTheme(colorScheme = darkColorScheme(primary = Palette.accent, background = Color.Black)) {
             // Changing the language re-reads every tr() text.
@@ -103,7 +104,7 @@ private fun App(state: AppState, logo: BitmapPainter) {
     BoxWithConstraints(Modifier.fillMaxSize().background(Palette.background)) {
         val windowHeight = maxHeight
         Column(
-            Modifier.align(Alignment.TopCenter).widthIn(max = 560.dp).fillMaxHeight()
+            Modifier.align(Alignment.TopCenter).fillMaxWidth().fillMaxHeight()
                 .padding(horizontal = 16.dp, vertical = 12.dp)
         ) {
             Header(state, logo)
@@ -132,7 +133,18 @@ private fun App(state: AppState, logo: BitmapPainter) {
                 Chip(tr("Technical logs", "Logs técnicos"), state.showLogs, Modifier.weight(1f)) { state.showLogs = true }
             }
             Spacer(Modifier.height(8.dp))
-            Output(state, Modifier.weight(1f))
+            Row(Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Column(Modifier.weight(1f).fillMaxHeight()) {
+                    Text(if (state.showLogs) tr("Technical logs", "Technische logs") else tr("Normal output", "Normale uitvoer"), color = Palette.accent, fontSize = 13.sp)
+                    Spacer(Modifier.height(5.dp))
+                    Output(state, Modifier.weight(1f))
+                }
+                Column(Modifier.weight(1f).fillMaxHeight()) {
+                    Text("JSON output (JSONL)", color = Palette.accent, fontSize = 13.sp)
+                    Spacer(Modifier.height(5.dp))
+                    JsonOutput(state, Modifier.weight(1f))
+                }
+            }
             Spacer(Modifier.height(6.dp))
             val clipboard = LocalClipboardManager.current
             Row {
@@ -295,14 +307,27 @@ private fun SettingsBody(state: AppState) {
         Pill(tr("Apply", "Aplicar"), PillStyle.TONAL) { state.applyPpm() }
     }
 
-    Section(tr("MeshCore channels to read (Public always; add #hashtags)", "Canais MeshCore para ler (Public sempre; adicione #hashtags)"))
+    Section(tr("MeshCore hashtag channels (derived keys)", "MeshCore hashtag-kanalen (afgeleide sleutels)"))
     Row(verticalAlignment = Alignment.CenterVertically) {
         TextInput(state.hashtagText, Modifier.weight(1f), KeyboardType.Text) { state.hashtagText = it }
         Spacer(Modifier.width(8.dp))
-        Pill(tr("Apply", "Aplicar"), PillStyle.TONAL) { state.applyHashtags() }
+        Pill(tr("Apply", "Toepassen"), PillStyle.TONAL) { state.applyHashtags() }
+    }
+    Section(tr("Custom channel keys (16-byte hex)", "Eigen kanaalsleutels (16-byte hex)"))
+    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+        TextInput(state.customKeyName, Modifier.weight(0.30f), KeyboardType.Text) { state.customKeyName = it }
+        TextInput(state.customKeyHex, Modifier.weight(0.70f), KeyboardType.Ascii) { state.customKeyHex = it }
+        Pill(tr("Add", "Toevoegen"), PillStyle.TONAL) { state.addCustomKey() }
+    }
+    Text(tr("Saved locally: ", "Lokaal opgeslagen: ") + (state.customKeySummary.ifEmpty { tr("none", "geen") }), color = Palette.muted, fontSize = 11.sp)
+    state.customKeyNames.forEach { name ->
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(name, color = Palette.text, modifier = Modifier.weight(1f), fontSize = 12.sp)
+            Pill(tr("Remove", "Verwijderen"), PillStyle.TEXT) { state.removeCustomKey(name) }
+        }
     }
 
-    Section(tr("Processing (optional)", "Processamento (opcional)"))
+    Section(tr("Processing (optional)", "Processing (optioneel)"))
     SwitchRow(tr("Averaging filter when decimating", "Filtro de média na decimação"), state.averaging) { state.changeAveraging(it) }
     SwitchRow(tr("Record IQ automatically on detections (3 s before + after)",
         "Gravar IQ automaticamente nas detecções (3 s antes + depois)"), state.autoRecord) { state.changeAutoRecord(it) }
@@ -363,6 +388,23 @@ private fun Output(state: AppState, modifier: Modifier) {
     }
 }
 
+@Composable
+private fun JsonOutput(state: AppState, modifier: Modifier) {
+    val listState = rememberLazyListState()
+    LaunchedEffect(state.jsonMessages.size) {
+        if (state.jsonMessages.isNotEmpty()) listState.scrollToItem(state.jsonMessages.lastIndex)
+    }
+    Box(modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Palette.output)
+        .border(1.dp, Palette.outline, RoundedCornerShape(16.dp)).padding(horizontal = 12.dp, vertical = 10.dp)) {
+        SelectionContainer {
+            LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
+                itemsIndexed(state.jsonMessages) { _, line ->
+                    Text(line, color = Palette.outputText, fontFamily = FontFamily.Monospace, fontSize = 11.sp, lineHeight = 15.sp)
+                }
+            }
+        }
+    }
+}
 // ---- building blocks, matching the Android app's look ------------------
 
 private enum class PillStyle { PRIMARY, OUTLINED, TONAL, TEXT, ACTIVE }

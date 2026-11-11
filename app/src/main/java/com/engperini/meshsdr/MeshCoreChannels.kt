@@ -30,8 +30,19 @@ object MeshCoreChannels {
     /** Hashtag channels to try besides Public; set from the app's settings. */
     @Volatile var hashtags: List<Channel> = emptyList()
         private set
+    @Volatile var customChannels: List<Channel> = emptyList()
+        private set
 
     fun hashtag(name: String) = Channel(name, sha256(name.toByteArray(Charsets.UTF_8)).copyOf(16))
+
+    /** Adds an explicitly supplied 16-byte channel key (hex), without logging or exporting it. */
+    @Synchronized fun setCustomChannels(entries: List<Pair<String, String>>) {
+        customChannels = entries.mapNotNull { (name, hex) ->
+            val clean = hex.trim().removePrefix("0x")
+            if (name.isBlank() || clean.length != 32 || clean.any { it.digitToIntOrNull(16) == null }) null
+            else Channel(name.trim(), clean.chunked(2).map { it.toInt(16).toByte() }.toByteArray())
+        }.distinctBy { it.name }
+    }
 
     /** "#test, #brasil" (with or without #) -> normalized text, as stored and shown. */
     fun normalize(text: String): String =
@@ -43,7 +54,7 @@ object MeshCoreChannels {
     }
 
     /** Name of the known channel with this hash, if any. */
-    fun nameFor(hash: Int): String? = (listOf(PUBLIC) + hashtags).firstOrNull { it.hash == hash }?.name
+    fun nameFor(hash: Int): String? = (listOf(PUBLIC) + hashtags + customChannels).firstOrNull { it.hash == hash }?.name
 
     /** Decrypts a GRP_TXT payload with the known channels; null if none matches its MAC. */
     fun decrypt(payload: ByteArray): Message? {
@@ -51,7 +62,7 @@ object MeshCoreChannels {
         val hash = payload[0].toInt() and 0xff
         val mac = payload.copyOfRange(1, 3)
         val cipher = payload.copyOfRange(3, payload.size)
-        for (ch in listOf(PUBLIC) + hashtags) {
+        for (ch in listOf(PUBLIC) + hashtags + customChannels) {
             if (ch.hash != hash) continue
             // MeshCore keys the HMAC with the 32-byte secret (16-byte key + zeros): same HMAC as the 16 bytes.
             val hmac = Mac.getInstance("HmacSHA256").apply { init(SecretKeySpec(ch.key, "HmacSHA256")) }.doFinal(cipher)
