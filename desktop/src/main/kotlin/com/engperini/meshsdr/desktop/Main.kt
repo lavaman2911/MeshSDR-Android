@@ -65,14 +65,15 @@ private object Palette {
  * reconnects if the dongle goes away, and a phone is its screen ([LinkServer]).
  */
 fun main(args: Array<String>) {
-    if ("--server" in args) runServer() else runWindow(args)
+    if ("--server" in args) runServer(args) else runWindow(args)
 }
 
-private fun runServer() {
+private fun runServer(args: Array<String>) {
     System.setProperty("java.awt.headless", "true")
     SwingUtilities.invokeAndWait {
         val state = AppState(keepTrying = true)
-        state.echoLogs = true
+        state.echoMessages = "--stdout-messages" in args
+        state.echoLogs = !state.echoMessages
         state.setRemoteScreen(true, persist = false)
         state.connect()
     }
