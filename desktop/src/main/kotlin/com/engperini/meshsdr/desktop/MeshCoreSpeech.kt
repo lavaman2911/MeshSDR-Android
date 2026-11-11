@@ -1,18 +1,25 @@
 package com.engperini.meshsdr.desktop
 
+import java.io.BufferedReader
+import java.io.BufferedWriter
 import java.io.File
+import java.util.Base64
 import java.util.concurrent.LinkedBlockingQueue
 import kotlin.concurrent.thread
 
-/** Serial speech queue using local XTTS v2 or the operating-system voice. */
+/** Persistent offline XTTS worker plus the operating-system voice fallback. */
 class MeshCoreSpeech(
-    private val ttsCommand: () -> File,
+    private val python: () -> File,
+    private val workerFile: () -> File,
     private val voice: () -> String,
     private val engine: () -> String,
     private val onStatus: (String) -> Unit
 ) {
     private val queue = LinkedBlockingQueue<String>()
     @Volatile private var closed = false
+    @Volatile private var worker: Process? = null
+    private var workerInput: BufferedWriter? = null
+    private var workerOutput: BufferedReader? = null
 
     init {
         thread(name = "meshsdr-tts", isDaemon = true) {
@@ -23,6 +30,7 @@ class MeshCoreSpeech(
                     onStatus("TTS-fout: " + (e.message ?: "onbekende fout"))
                 }
             }
+            stopWorker()
         }
     }
 
@@ -31,7 +39,12 @@ class MeshCoreSpeech(
     }
 
     fun clear() = queue.clear()
-    fun close() { closed = true; queue.clear() }
+
+    fun close() {
+        closed = true
+        queue.clear()
+        worker?.destroy()
+    }
 
     private fun speakNow(text: String) {
         if (engine() == "Systeem") {
@@ -39,38 +52,65 @@ class MeshCoreSpeech(
             onStatus("Systeemstem actief")
             return
         }
-        val command = ttsCommand()
-        if (!command.isFile) {
+        if (!python().isFile || !workerFile().isFile) {
             onStatus("XTTS v2 is nog niet geïnstalleerd. Klik op ‘XTTS v2 installeren’.")
             return
         }
+
+        onStatus("XTTS v2 wordt gestart…")
+        val (input, output) = ensureWorker()
         val wav = File.createTempFile("meshsdr-xtts-", ".wav")
-        val log = File.createTempFile("meshsdr-xtts-", ".log")
         try {
-            val process = ProcessBuilder(
-                command.absolutePath,
-                "--model_name", "tts_models/multilingual/multi-dataset/xtts_v2",
-                "--text", text,
-                "--speaker_idx", voice(),
-                "--language_idx", "nl",
-                "--out_path", wav.absolutePath
-            ).redirectErrorStream(true).redirectOutput(log).apply {
+            fun b64(value: String) = Base64.getEncoder().encodeToString(value.toByteArray(Charsets.UTF_8))
+            input.write(b64(text) + "|" + b64(voice()) + "|" + b64(wav.absolutePath))
+            input.newLine()
+            input.flush()
+            val response = output.readLine() ?: error("XTTS-worker is onverwacht gestopt.")
+            if (response != "OK") error(response.removePrefix("ERR\t").take(500))
+            if (!wav.isFile || wav.length() < 44) error("XTTS heeft geen geldige WAV-audio gemaakt.")
+            playWav(wav)
+            onStatus("XTTS v2 actief • ${voice()} • lokaal")
+        } finally {
+            wav.delete()
+        }
+    }
+
+    @Synchronized
+    private fun ensureWorker(): Pair<BufferedWriter, BufferedReader> {
+        val current = worker
+        if (current != null && current.isAlive && workerInput != null && workerOutput != null)
+            return workerInput!! to workerOutput!!
+
+        stopWorker()
+        val errorLog = File(XttsVoiceInstaller.dataDirectory(), "xtts-worker.log")
+        val process = ProcessBuilder(python().absolutePath, workerFile().absolutePath)
+            .redirectError(errorLog)
+            .apply {
                 environment()["TTS_HOME"] = File(XttsVoiceInstaller.dataDirectory(), "models").absolutePath
                 environment()["COQUI_TOS_AGREED"] = "1"
             }.start()
-            if (!process.waitFor(180, java.util.concurrent.TimeUnit.SECONDS)) {
-                process.destroyForcibly()
-                error("XTTS v2 duurde te lang.")
-            }
-            if (process.exitValue() != 0 || !wav.isFile || wav.length() < 44) {
-                error("XTTS v2 mislukt: " + log.readText().takeLast(500))
-            }
-            playWav(wav)
-            onStatus("XTTS v2 actief • " + voice() + " • lokaal")
-        } finally {
-            wav.delete()
-            log.delete()
+        val reader = process.inputStream.bufferedReader()
+        val ready = reader.readLine()
+        if (ready != "READY") {
+            process.destroyForcibly()
+            val detail = errorLog.takeIf { it.isFile }?.readText()?.takeLast(700).orEmpty()
+            error("XTTS-worker startte niet: ${detail.ifBlank { ready ?: "geen antwoord" }}")
         }
+        val writer = process.outputStream.bufferedWriter()
+        worker = process
+        workerInput = writer
+        workerOutput = reader
+        return writer to reader
+    }
+
+    @Synchronized
+    private fun stopWorker() {
+        try { workerInput?.close() } catch (_: Exception) {}
+        try { workerOutput?.close() } catch (_: Exception) {}
+        worker?.destroy()
+        worker = null
+        workerInput = null
+        workerOutput = null
     }
 
     private fun playWav(wav: File) {
