@@ -84,12 +84,27 @@ class AppState(private val keepTrying: Boolean = false) {
         private set
     var ttsChannelsText by mutableStateOf("*")
     var ttsSenderText by mutableStateOf("")
+    var ttsEngine by mutableStateOf(prefs.get("ttsEngine", "Azure"))
+        private set
+    var ttsVoice by mutableStateOf(prefs.get("ttsVoice", "nl-NL-MaartenNeural"))
+        private set
+    var ttsAzureRegion by mutableStateOf(prefs.get("ttsAzureRegion", "westeurope"))
+    /** API key is deliberately session-only; set MESHSDR_AZURE_SPEECH_KEY to prefill it. */
+    var ttsAzureKey by mutableStateOf(System.getenv("MESHSDR_AZURE_SPEECH_KEY") ?: "")
+    var ttsStatus by mutableStateOf("Azure Speech • nl-NL-MaartenNeural")
+        private set
     var autoConnect by mutableStateOf(true)
         private set
     var ttsInstallStatus by mutableStateOf(if (PiperVoiceInstaller.isInstalled()) "Piper-stem geïnstalleerd" else "Piper-stem niet geïnstalleerd")
         private set
     @Volatile private var ttsInstalling = false
-    private val speech = MeshCoreSpeech({ PiperVoiceInstaller.pythonFile() }, { PiperVoiceInstaller.modelFile() })
+    private val speech = MeshCoreSpeech(
+        { PiperVoiceInstaller.pythonFile() },
+        { PiperVoiceInstaller.modelFile() },
+        { if (ttsAzureKey.isBlank()) null else AzureSpeechConfig(ttsAzureKey, ttsAzureRegion, ttsVoice) },
+        { ttsEngine },
+        { message -> SwingUtilities.invokeLater { ttsStatus = message } }
+    )
     private val spokenIds = LinkedHashSet<String>()
 
     var status by mutableStateOf(LinkStatus.DISCONNECTED)
@@ -297,6 +312,22 @@ class AppState(private val keepTrying: Boolean = false) {
         prefs.put("ttsSender", ttsSenderText)
     }
 
+    fun selectTtsEngine(value: String) {
+        ttsEngine = value
+        prefs.put("ttsEngine", value)
+    }
+
+    fun selectTtsVoice(value: String) {
+        ttsVoice = value
+        prefs.put("ttsVoice", value)
+    }
+
+    fun saveAzureSettings() {
+        prefs.put("ttsAzureRegion", ttsAzureRegion.trim())
+        ttsAzureRegion = ttsAzureRegion.trim()
+        ttsStatus = if (ttsAzureKey.isBlank()) "Vul je Azure Speech-sleutel in." else "Azure ingesteld • " + ttsVoice
+    }
+
     @Synchronized fun installDutchVoice() {
         if (ttsInstalling || PiperVoiceInstaller.isInstalled()) {
             ttsInstallStatus = if (PiperVoiceInstaller.isInstalled()) "Piper-stem geïnstalleerd" else ttsInstallStatus
@@ -318,7 +349,7 @@ class AppState(private val keepTrying: Boolean = false) {
     }
 
     fun testSpeech() {
-        speech.say("Mesh SDR. Spraaktest. Nederlandse tekst naar spraak werkt.")
+        speech.say("Dit is een test van MeshSDR. De Nederlandse stem leest berichten duidelijk voor.")
     }
 
     private fun maybeSpeakMeshCore(frame: LoraFrame) {
