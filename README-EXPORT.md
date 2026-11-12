@@ -654,3 +654,22 @@ Interpretation:
 - If the receiver journal says `Stored message` but the browser does not update, reload the dashboard and check its browser connection to `/api/events`.
 
 Diagnostics deliberately avoid logging message text or the shared API token.
+
+
+## 18. Raspberry Pi 5: install the desktop SDR receiver
+
+The ARM64 workflow produces **two separate Debian packages**:
+
+- `meshsdr-receiver_*.deb`: web dashboard/API only.
+- `meshsdr_*.deb` (desktop package name may be capitalized by Compose): the MeshSDR application containing the RTL-TCP receive loop, native LoRa PHY, MeshCore decoder, and message exporter.
+
+Installing the receiver package alone does not start an SDR or read an RTL-SDR dongle. For a Pi that should receive radio directly, install the desktop package as well. Connect the RTL-SDR to the Pi, launch MeshSDR, select **MeshCore NL**, and press **Connect**. The application starts local `rtl_tcp` by default when the setting “Start rtl_tcp with the dongle on this computer” is enabled.
+
+The ARM64 packages are built by the `MeshSDR ARM64 Debian packages` GitHub Actions workflow. Download the `meshsdr-arm64-deb` artifact from a successful run. Check the package architecture before installing:
+
+```bash
+dpkg-deb -f ./meshsdr_*.deb Package Version Architecture
+sudo apt install ./meshsdr_*.deb
+```
+
+The desktop app requires a graphical Linux session for its window. To run it headlessly, use the packaged application's `--server` mode only after configuring its radio and exporter settings; check the installed desktop launcher/application files for the exact executable path. The web receiver remains a separate service and must also be installed/configured if you want the browser dashboard.
