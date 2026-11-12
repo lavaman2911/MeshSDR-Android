@@ -8,7 +8,8 @@ Type=simple
 User=%i
 Environment=HOME=/home/%i
 Environment=JAVA_HOME=/usr/lib/jvm/java-17-openjdk-arm64
-ExecStart=/opt/meshsdr/bin/MeshSDR --server
+SupplementaryGroups=plugdev
+ExecStart=/opt/MeshSDR/bin/MeshSDR --server
 Restart=always
 RestartSec=5
 UMask=0077
