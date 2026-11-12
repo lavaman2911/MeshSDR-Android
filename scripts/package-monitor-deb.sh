@@ -24,6 +24,8 @@ Version: $VERSION
 Section: net
 Priority: optional
 Architecture: arm64
+Conflicts: meshsdr-receiver
+Replaces: meshsdr-receiver
 Depends: $DESKTOP_DEPS, $RECEIVER_DEPS, rtl-sdr
 Maintainer: MeshSDR
 Description: MeshSDR Raspberry Pi RTL-SDR receiver and live web monitor
