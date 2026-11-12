@@ -26,20 +26,20 @@ internal class MessageExporter {
     init {
         configFile.parentFile.mkdirs()
         if (!configFile.exists()) {
-            props.setProperty("endpoint", "http://localhost:8080/api/messages")
+            props.setProperty("endpoint", "http://localhost:9090/api/messages")
             props.setProperty("token", "CHANGE_ME")
             props.setProperty("hashtags", "#sos")
             configFile.writeText(propsToString())
             runCatching { configFile.setReadable(false, false); configFile.setWritable(false, false); configFile.setReadable(true, true); configFile.setWritable(true, true) }
         }
         props.load(configFile.inputStream())
-        endpoint = props.getProperty("endpoint", "http://localhost:8080/api/messages")
+        endpoint = props.getProperty("endpoint", "http://localhost:9090/api/messages")
         token = props.getProperty("token", "")
         channelNames = (listOf("Public") + MeshCoreChannels.normalize(props.getProperty("hashtags", "")).split(", ").filter { it.isNotBlank() })
         MeshCoreChannels.setHashtags(props.getProperty("hashtags", ""))
     }
 
-    private fun propsToString() = "endpoint=http://localhost:8080/api/messages\ntoken=CHANGE_ME\nhashtags=#sos\n"
+    private fun propsToString() = "endpoint=http://localhost:9090/api/messages\ntoken=CHANGE_ME\nhashtags=#sos\n"
 
     fun accept(frameBytes: ByteArray, snr: Float) {
         val packet = MeshCorePacket.parse(frameBytes) ?: return
