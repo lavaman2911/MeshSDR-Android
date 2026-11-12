@@ -45,7 +45,7 @@ Environment=HOME=/var/lib/meshsdr-receiver
 Environment=MESHSDR_PROFILE=meshcore-nl
 Environment=MESHSDR_ENDPOINT=http://127.0.0.1:9090/api/messages
 EnvironmentFile=-/etc/default/meshsdr-radio
-ExecStart=/opt/MeshSDR/bin/MeshSDR --server
+ExecStart=/opt/meshsdr/bin/MeshSDR --server
 Restart=always
 RestartSec=5
 UMask=0077
