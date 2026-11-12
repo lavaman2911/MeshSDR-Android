@@ -41,6 +41,28 @@ journalctl -u meshsdr-exporter@$USER -f
 
 The desktop app uses RTL-SDR via USB and starts local `rtl_tcp` in its default configuration. This is not a direct USB serial/Bluetooth MeshCore modem connection. Choose a remote RTL-SDR TCP endpoint through the existing desktop receiver settings if required.
 
+## Radio and exporter configuration
+
+On first launch, the desktop app creates `~/.config/meshsdr/exporter.properties` with owner-only read/write permissions. Stop the desktop service before editing it:
+
+```properties
+endpoint=http://localhost:8080/api/messages
+token=PASTE_THE_RECEIVER_TOKEN_HERE
+hashtags=#sos
+rtl_tcp_host=127.0.0.1
+rtl_tcp_port=1234
+rtl_tcp_device=0
+auto_start_rtl_tcp=true
+```
+
+- `rtl_tcp_device`: local RTL-SDR device index passed to `rtl_tcp -d`.
+- `rtl_tcp_port`: local rtl_tcp listen port, or remote port when auto-start is false.
+- `rtl_tcp_host`: remote rtl_tcp host when `auto_start_rtl_tcp=false`.
+- `hashtags`: comma-separated MeshCore hashtag channels, e.g. `#sos,#alerts`.
+- `endpoint` and `token`: receiver POST destination and shared token.
+
+After editing, run `chmod 600 ~/.config/meshsdr/exporter.properties` and restart the service. For a remote rtl_tcp server, set `auto_start_rtl_tcp=false` and set host/port accordingly.
+
 ## Receiver
 
 Follow [receiver/README.md](receiver/README.md). It installs a FastAPI + SQLite service on port 8080. Homarr iframe URL: `http://PI-IP:8080/`.
