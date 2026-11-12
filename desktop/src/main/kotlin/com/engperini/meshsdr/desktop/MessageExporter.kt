@@ -50,9 +50,9 @@ internal class MessageExporter(
             }
         }
         props.load(configFile.inputStream())
-        endpoint = props.getProperty("endpoint", "http://localhost:9090/api/messages").trim()
-        token = props.getProperty("token", "").trim()
-        val hashtags = props.getProperty("hashtags", "")
+        endpoint = System.getenv("MESHSDR_ENDPOINT")?.trim()?.takeIf { it.isNotBlank() } ?: props.getProperty("endpoint", "http://localhost:9090/api/messages").trim()
+        token = System.getenv("MESHSDR_TOKEN")?.trim()?.takeIf { it.isNotBlank() } ?: props.getProperty("token", "").trim()
+        val hashtags = System.getenv("MESHSDR_HASHTAGS")?.trim() ?: props.getProperty("hashtags", "")
         channelNames = (listOf("Public") + MeshCoreChannels.normalize(hashtags).split(", ").filter { it.isNotBlank() })
         MeshCoreChannels.setHashtags(hashtags)
         logger("EXPORT", "Exporter initialized; endpoint=$endpoint; hashtags=$hashtags; tokenConfigured=${token.isNotBlank() && token != "CHANGE_ME"}")
