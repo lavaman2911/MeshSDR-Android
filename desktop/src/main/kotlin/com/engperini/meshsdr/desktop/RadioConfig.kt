@@ -11,7 +11,7 @@ internal object RadioConfig {
         file.parentFile.mkdirs()
         if (!file.exists()) {
             file.writeText(
-                "endpoint=http://localhost:8080/api/messages\n" +
+                "endpoint=http://localhost:9090/api/messages\n" +
                 "token=CHANGE_ME\nhashtags=#sos\n" +
                 "rtl_tcp_host=127.0.0.1\nrtl_tcp_port=1234\nrtl_tcp_device=0\n" +
                 "auto_start_rtl_tcp=true\n"
