@@ -68,6 +68,8 @@ jobs:
           test -n "$BIN"
           test -f "$VERIFY/opt/meshsdr-receiver/app.py"
           test -f "$VERIFY/lib/systemd/system/meshsdr-radio.service"
+          grep -F 'ExecStart=/opt/meshsdr/bin/MeshSDR --server' "$VERIFY/lib/systemd/system/meshsdr-radio.service"
+          test -x "$VERIFY/opt/meshsdr/bin/MeshSDR"
           LIB="$(find "$VERIFY" -type f -name libmeshsdr_lora.so -print -quit)"
           test -n "$LIB"
           file "$BIN" "$LIB"
