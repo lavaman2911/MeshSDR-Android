@@ -125,7 +125,7 @@ class AppState(private val keepTrying: Boolean = false) {
         Lang.portuguese = portuguese
         genericSf = prefs.getInt("genericSf", genericSf)
         genericBw = prefs.getInt("genericBw", genericBw).takeIf { it in LoraProfile.GENERIC_BANDWIDTHS } ?: 125_000
-        profile = LoraProfile.byId(prefs.get("profile", null))
+        profile = LoraProfile.byId(System.getenv("MESHSDR_PROFILE") ?: prefs.get("profile", null))
         centerHz = prefs.getLong("frequency", profile.frequencyHz)
         if (profile.protocol == Protocol.GENERIC) profile = LoraProfile.generic(centerHz, genericSf, genericBw)
         gainTenths = prefs.getInt("gainTenths", gainTenths)
