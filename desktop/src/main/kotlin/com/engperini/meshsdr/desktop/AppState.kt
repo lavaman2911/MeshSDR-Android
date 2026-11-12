@@ -43,7 +43,7 @@ class AppState(private val keepTrying: Boolean = false) {
     private val prefs = Preferences.userRoot().node("com/engperini/meshsdr")
     private val timeFormat = SimpleDateFormat("HH:mm:ss", Locale.US)
     private val sampleRate = LoraProfile.SAMPLE_RATE
-    private val messageExporter by lazy { MessageExporter() }
+    private val messageExporter by lazy { MessageExporter { tag, detail -> log(tag, detail) } }
 
     var portuguese by mutableStateOf(false)
         private set
