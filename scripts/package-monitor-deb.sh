@@ -9,6 +9,9 @@ RECEIVER="$(find "$OUT" -maxdepth 1 -name 'meshsdr-receiver_*.deb' -print -quit)
 test -n "$DESKTOP" && test -n "$RECEIVER"
 DESKTOP_DEPS="$(dpkg-deb -f "$DESKTOP" Depends || true)"
 RECEIVER_DEPS="$(dpkg-deb -f "$RECEIVER" Depends || true)"
+# The desktop package is built on Ubuntu 24.04 (t64 transition). Keep its
+# runtime SONAME dependencies compatible with Raspberry Pi OS Debian 12.
+DESKTOP_DEPS="$(printf '%s' "$DESKTOP_DEPS" | sed -e 's/libasound2t64/libasound2/g' -e 's/libpng16-16t64/libpng16-16/g')"
 WORK="$OUT/meshsdr-monitor"
 rm -rf "$WORK"
 mkdir -p "$WORK/DEBIAN" "$WORK/lib/systemd/system"
