@@ -1,40 +1,51 @@
 name: MeshSDR ARM64 Debian packages
+
 on:
   push:
-    branches: [export-messages]
+    branches:
+      - export-messages
   pull_request:
-    branches: [export-messages]
+    branches:
+      - export-messages
   workflow_dispatch:
     inputs:
       version:
         description: Package version, for example 0.5.1
         required: false
         default: 0.5.1
+
 permissions:
   contents: read
+
 jobs:
   build-arm64:
+    name: Build Raspberry Pi package (Debian 12 ABI)
     runs-on: ubuntu-24.04-arm
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
       - name: Set up Java 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
+
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.11.1'
-      - name: Install native and package dependencies
+
+      - name: Install build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake build-essential dpkg-dev python3 python3-venv
-      - name: Compile ARM64 native LoRa PHY for Debian 12
+          sudo apt-get install -y cmake build-essential dpkg-dev python3 python3-venv binutils
+
+      - name: Compile ARM64 native LoRa PHY against Debian 12
+        shell: bash
         run: |
-          # Build inside Debian 12 so the shared library only requires the
-          # glibc version available on the Raspberry Pi OS / Debian 12 host.
+          set -euxo pipefail
+          docker version
           docker run --rm --platform linux/arm64 \
             -v "${GITHUB_WORKSPACE}:/src" -w /src debian:12 bash -euxc '
               apt-get update
@@ -45,22 +56,27 @@ jobs:
             '
           mkdir -p desktop/resources/linux-arm64
           install -m 755 desktop/build-native/libmeshsdr_lora.so desktop/resources/linux-arm64/libmeshsdr_lora.so
+
       - name: Build desktop application Debian package
         env:
           MESHSDR_VERSION_NAME: ${{ inputs.version || '0.5.1' }}
         working-directory: desktop
         run: gradle --no-daemon clean test packageDeb
+
       - name: Build receiver Debian package
         env:
           MESHSDR_VERSION_NAME: ${{ inputs.version || '0.5.1' }}
         run: bash receiver/package-deb.sh
+
       - name: Build combined Raspberry Pi monitor package
         env:
           MESHSDR_VERSION_NAME: ${{ inputs.version || '0.5.1' }}
         run: bash scripts/package-monitor-deb.sh
+
       - name: Validate receiver Python files
         run: python3 -m py_compile receiver/app.py receiver/test_messages.py
-      - name: Validate Debian package architecture and contents
+
+      - name: Validate package layout and Debian 12 glibc compatibility
         shell: bash
         run: |
           set -euxo pipefail
@@ -70,35 +86,26 @@ jobs:
           VERIFY="$(mktemp -d)"
           trap 'rm -rf "$VERIFY"' EXIT
           dpkg-deb -x dist/meshsdr-monitor_*_arm64.deb "$VERIFY"
-          echo "=== Extracted package files ==="
-          find "$VERIFY/opt" "$VERIFY/lib/systemd/system" -maxdepth 6 -type f -print | sort
-          BIN="$(find "$VERIFY/opt" -type f -name MeshSDR -perm /111 -print -quit)"
-          test -n "$BIN"
+
+          BIN="$VERIFY/opt/meshsdr/bin/MeshSDR"
+          LIB="$VERIFY/opt/meshsdr/lib/app/resources/libmeshsdr_lora.so"
+          SERVICE="$VERIFY/lib/systemd/system/meshsdr-radio.service"
+          test -x "$BIN"
+          test -f "$LIB"
           test -f "$VERIFY/opt/meshsdr-receiver/app.py"
-          test -f "$VERIFY/lib/systemd/system/meshsdr-radio.service"
-          grep -F 'ExecStart=/opt/meshsdr/bin/MeshSDR --server' "$VERIFY/lib/systemd/system/meshsdr-radio.service"
-          test -x "$VERIFY/opt/meshsdr/bin/MeshSDR"
-          LIB="$(find "$VERIFY" -type f -name libmeshsdr_lora.so -print -quit)"
-          test -n "$LIB"
+          grep -F 'ExecStart=/opt/meshsdr/bin/MeshSDR --server' "$SERVICE"
+
           file "$BIN" "$LIB"
           readelf -h "$BIN" | grep -E 'AArch64|ARM'
           readelf -h "$LIB" | grep -E 'AArch64|ARM'
-          echo "=== Required GLIBC symbol versions ==="
+          echo "=== GLIBC symbol requirements (must be <= Debian 12 glibc 2.36) ==="
           readelf --version-info "$LIB" | grep -Eo 'GLIBC_[0-9]+\.[0-9]+' | sort -Vu || true
-          if readelf --version-info "$LIB" | grep -Eq 'GLIBC_2\.(3[3-9]|[4-9][0-9])'; then
+          if readelf --version-info "$LIB" | grep -Eq 'GLIBC_2\.(3[7-9]|[4-9][0-9])'; then
             echo "ERROR: native decoder requires glibc newer than Debian 12"
             exit 1
           fi
-      - name: Upload installable ARM64 packages
-        uses: actions/upload-artifact@v4
-        with:
-          name: meshsdr-pi-monitor-arm64
-          path: dist/*.deb
-          if-no-files-found: error
-          retention-days: 30
- ; then exit 1; fi
-          ! readelf --version-info "$LIB" | grep -Eq 'GLIBC_2\.(3[3-9]|[4-9][0-9])'
-      - name: Upload installable ARM64 packages
+
+      - name: Upload installable ARM64 package
         uses: actions/upload-artifact@v4
         with:
           name: meshsdr-pi-monitor-arm64
