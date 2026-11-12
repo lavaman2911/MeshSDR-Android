@@ -1,0 +1,22 @@
+[Unit]
+Description=MeshSDR message receiver and Homarr dashboard
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=meshsdr
+Group=meshsdr
+WorkingDirectory=/opt/meshsdr-receiver
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/meshsdr-receiver/.venv/bin/uvicorn app:app --host 0.0.0.0 --port 8080
+Restart=on-failure
+RestartSec=3
+UMask=0077
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/opt/meshsdr-receiver
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
