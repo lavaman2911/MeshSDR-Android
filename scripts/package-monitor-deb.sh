@@ -7,21 +7,24 @@ mkdir -p "$OUT"
 DESKTOP="$(find "$ROOT/desktop/build/compose/binaries/main/deb" -maxdepth 1 -name '*.deb' -print -quit)"
 RECEIVER="$(find "$OUT" -maxdepth 1 -name 'meshsdr-receiver_*.deb' -print -quit)"
 test -n "$DESKTOP" && test -n "$RECEIVER"
-DESKTOP_PKG="$(dpkg-deb -f "$DESKTOP" Package)"
-RECEIVER_PKG="$(dpkg-deb -f "$RECEIVER" Package)"
+DESKTOP_DEPS="$(dpkg-deb -f "$DESKTOP" Depends || true)"
+RECEIVER_DEPS="$(dpkg-deb -f "$RECEIVER" Depends || true)"
 WORK="$OUT/meshsdr-monitor"
 rm -rf "$WORK"
 mkdir -p "$WORK/DEBIAN" "$WORK/lib/systemd/system"
+# This is a real combined package: both application payloads are inside this .deb.
+dpkg-deb -x "$DESKTOP" "$WORK"
+dpkg-deb -x "$RECEIVER" "$WORK"
 cat > "$WORK/DEBIAN/control" <<EOF
 Package: meshsdr-monitor
 Version: $VERSION
 Section: net
 Priority: optional
 Architecture: arm64
-Depends: $DESKTOP_PKG, $RECEIVER_PKG, rtl-sdr, openjdk-17-jre
+Depends: $DESKTOP_DEPS, $RECEIVER_DEPS, rtl-sdr
 Maintainer: MeshSDR
-Description: Complete MeshSDR Raspberry Pi RTL-SDR receiver and web monitor
-Installs the radio decoder service and web dashboard together.
+Description: MeshSDR Raspberry Pi RTL-SDR receiver and live web monitor
+Includes the native LoRa decoder, MeshCore message exporter, RTL-SDR service, FastAPI receiver and HTML dashboard.
 EOF
 cat > "$WORK/lib/systemd/system/meshsdr-radio.service" <<'EOF'
 [Unit]
@@ -48,12 +51,26 @@ EOF
 cat > "$WORK/DEBIAN/postinst" <<'EOF'
 #!/bin/sh
 set -e
-if [ -f /etc/meshsdr-receiver/config.yaml ]; then
- TOKEN="$(sed -n 's/^token: *//p' /etc/meshsdr-receiver/config.yaml | tr -d '"')"
- printf 'MESHSDR_TOKEN=%s\\n' "$TOKEN" > /etc/default/meshsdr-radio
- chmod 600 /etc/default/meshsdr-radio
-fi
+getent passwd meshsdr >/dev/null || adduser --system --group --home /var/lib/meshsdr-receiver --no-create-home meshsdr
 install -d -o meshsdr -g meshsdr -m 0750 /var/lib/meshsdr-receiver
+install -d -o root -g meshsdr -m 0750 /etc/meshsdr-receiver
+if [ ! -f /etc/meshsdr-receiver/config.yaml ]; then
+ install -o root -g meshsdr -m 0640 /etc/meshsdr-receiver/config.example.yaml /etc/meshsdr-receiver/config.yaml
+ TOKEN="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
+ sed -i "s/REPLACE_WITH_LONG_RANDOM_SHARED_TOKEN/$TOKEN/" /etc/meshsdr-receiver/config.yaml
+fi
+if [ ! -f /etc/meshsdr-receiver/channels.yaml ]; then
+ install -o root -g meshsdr -m 0640 /etc/meshsdr-receiver/channels.example.yaml /etc/meshsdr-receiver/channels.yaml
+fi
+python3 -m venv /opt/meshsdr-receiver/.venv
+/opt/meshsdr-receiver/.venv/bin/pip install --disable-pip-version-check -r /opt/meshsdr-receiver/requirements.txt
+chown -R root:root /opt/meshsdr-receiver
+chown meshsdr:meshsdr /etc/meshsdr-receiver/config.yaml /etc/meshsdr-receiver/channels.yaml
+chmod 600 /etc/meshsdr-receiver/config.yaml /etc/meshsdr-receiver/channels.yaml
+TOKEN="$(sed -n 's/^token: *//p' /etc/meshsdr-receiver/config.yaml | tr -d '"')"
+printf 'MESHSDR_TOKEN=%s\n' "$TOKEN" > /etc/default/meshsdr-radio
+chmod 600 /etc/default/meshsdr-radio
+chown root:root /etc/default/meshsdr-radio
 usermod -a -G plugdev meshsdr || true
 systemctl daemon-reload
 systemctl enable meshsdr-receiver.service meshsdr-radio.service
@@ -64,8 +81,8 @@ chmod 755 "$WORK/DEBIAN/postinst"
 cat > "$WORK/DEBIAN/prerm" <<'EOF'
 #!/bin/sh
 if [ "$1" = remove ]; then
- systemctl stop meshsdr-radio.service || true
- systemctl disable meshsdr-radio.service || true
+ systemctl stop meshsdr-radio.service meshsdr-receiver.service || true
+ systemctl disable meshsdr-radio.service meshsdr-receiver.service || true
 fi
 EOF
 chmod 755 "$WORK/DEBIAN/prerm"
@@ -75,4 +92,4 @@ systemctl daemon-reload || true
 EOF
 chmod 755 "$WORK/DEBIAN/postrm"
 dpkg-deb --root-owner-group --build "$WORK" "$OUT/meshsdr-monitor_${VERSION}_arm64.deb"
-echo "Built $OUT/meshsdr-monitor_${VERSION}_arm64.deb"
+echo "Built self-contained $OUT/meshsdr-monitor_${VERSION}_arm64.deb"
