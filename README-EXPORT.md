@@ -613,3 +613,44 @@ For bugs, include the branch/commit, Pi OS version, `uname -m`, relevant systemd
 ---
 
 **Project goal:** provide a straightforward bridge from MeshSDR's existing MeshCore message decoding to a locally hosted, searchable/live web monitor, while keeping the radio decoder and message decryption inside the existing MeshSDR application.
+
+
+## 17. Export diagnostics and logs
+
+The desktop exporter now writes diagnostic entries to the normal MeshSDR **Logs** tab (and to standard output in server mode). Look for the `EXPORT` tag.
+
+Examples include:
+
+- `Exporter initialized`: endpoint and hashtag settings loaded; the log reports whether a usable token is configured, but never prints the token.
+- `Decoded message`: a supported MeshCore message was decoded and appended to the local JSONL file.
+- `Receiver accepted message (HTTP 200)`: the receiver accepted the POST.
+- `Receiver rejected message (HTTP 401/422/...)`: the receiver returned an HTTP error; check token, payload, and receiver logs.
+- `POST failed`: network, connection, or endpoint failure. The local JSONL copy remains available.
+- `Frame diagnostic`: every 25 verified MeshCore frames, a summary shows packet parse rejects, non-group-text frames, decryption rejects, empty bodies, and successful exports.
+
+The receiver writes startup, authentication rejection, message storage/duplicate, and dashboard event-stream connection logs to systemd's journal. On the Pi:
+
+```bash
+sudo journalctl -u meshsdr-receiver -f
+```
+
+To inspect recent receiver logs:
+
+```bash
+sudo journalctl -u meshsdr-receiver -n 200 --no-pager
+```
+
+The desktop local export file is:
+
+```bash
+tail -f ~/.config/meshsdr/messages.jsonl
+```
+
+Interpretation:
+
+- If MeshSDR shows LoRa detections but no verified frames, investigate RF frequency, bandwidth, spreading factor, signal quality, and the radio profile first.
+- If verified MeshCore frames appear but `Frame diagnostic` shows `decryptRejected` increasing, the decoder is receiving frames but cannot decrypt those payloads with the currently supported channel/key configuration.
+- If `Decoded message` appears and the JSONL file grows but the dashboard stays empty, check the POST result and receiver journal. HTTP 401 usually means the shared token does not match; connection errors usually mean the endpoint/port/network is wrong.
+- If the receiver journal says `Stored message` but the browser does not update, reload the dashboard and check its browser connection to `/api/events`.
+
+Diagnostics deliberately avoid logging message text or the shared API token.
