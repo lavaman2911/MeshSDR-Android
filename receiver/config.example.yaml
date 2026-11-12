@@ -1,8 +1,8 @@
 token: REPLACE_WITH_LONG_RANDOM_SHARED_TOKEN
-database: ./messages.sqlite3
-channels_file: ./channels.yaml
+database: /var/lib/meshsdr-receiver/messages.sqlite3
+channels_file: /etc/meshsdr-receiver/channels.yaml
 host: 0.0.0.0
-port: 8080
+port: 9090
 server_alerts:
   enabled: false
   command: aplay
