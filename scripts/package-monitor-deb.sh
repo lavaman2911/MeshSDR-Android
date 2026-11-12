@@ -24,7 +24,7 @@ Architecture: arm64
 Depends: $DESKTOP_DEPS, $RECEIVER_DEPS, rtl-sdr
 Maintainer: MeshSDR
 Description: MeshSDR Raspberry Pi RTL-SDR receiver and live web monitor
-Includes the native LoRa decoder, MeshCore message exporter, RTL-SDR service, FastAPI receiver and HTML dashboard.
+ Includes the native LoRa decoder, MeshCore message exporter, RTL-SDR service, FastAPI receiver and HTML dashboard.
 EOF
 cat > "$WORK/lib/systemd/system/meshsdr-radio.service" <<'EOF'
 [Unit]
