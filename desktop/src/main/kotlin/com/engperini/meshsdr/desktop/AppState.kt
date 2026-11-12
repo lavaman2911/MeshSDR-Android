@@ -133,11 +133,11 @@ class AppState(private val keepTrying: Boolean = false) {
         ppmText = "$ppm"
         autoRecord = prefs.getBoolean("autoRecord", false)
         averaging = prefs.getBoolean("averaging", true)
-        autoStartRtlTcp = prefs.getBoolean("autoStartRtlTcp", true)
-        serverText = prefs.get("server", serverText)
+        autoStartRtlTcp = RadioConfig.autoStart()
+        serverText = "${RadioConfig.host()}:${RadioConfig.port()}"
         freqText = "%.6f".format(Locale.US, centerHz / 1e6)
         bwText = LoraProfile.formatKhz(genericBw)
-        hashtagText = prefs.get("hashtags", "")
+        hashtagText = RadioConfig.get("hashtags", prefs.get("hashtags", ""))
         MeshCoreChannels.setHashtags(hashtagText)
         if (prefs.getBoolean("remoteScreen", false)) setRemoteScreen(true)
         log("APP", tr("LoRa profile: ${active().describe()}. Any sync word is accepted and shown.",
@@ -458,8 +458,9 @@ class AppState(private val keepTrying: Boolean = false) {
                 "Ou desligue \"iniciar rtl_tcp\" e digite o endereço de um servidor."))
             return null
         }
-        val port = LOCAL_PORT
-        val cmd = listOf(exe.absolutePath, "-a", "127.0.0.1", "-p", "$port", "-s", "$sampleRate", "-f", "${tunedHz()}")
+        val port = RadioConfig.port()
+        val cmd = listOf(exe.absolutePath, "-a", "127.0.0.1", "-p", "$port", "-d", "${RadioConfig.deviceIndex()}",
+            "-s", "$sampleRate", "-f", "${tunedHz()}")
         log("SDR", tr("Starting ", "Iniciando ") + cmd.joinToString(" "))
         val process = ProcessBuilder(cmd).directory(exe.parentFile).redirectErrorStream(true).start()
         rtlTcp = process
