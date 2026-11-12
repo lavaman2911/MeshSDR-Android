@@ -25,8 +25,10 @@ def conn():
  d.execute("CREATE TABLE IF NOT EXISTS messages(id TEXT PRIMARY KEY,timestamp TEXT,channel_name TEXT,channel_index INTEGER,sender TEXT,text TEXT,rssi REAL,snr REAL,received_at TEXT)")
  d.commit(); return d
 def classify(name):
+ aliases={"public":"#public","sos":"#sos","private":"private chat"}
+ wanted=aliases.get(name.casefold(),name).casefold()
  for c in channels():
-  if c.get("name","").casefold()==name.casefold(): return c.get("display_panel","PUBLIC").upper(),c.get("alert_type","none")
+  if c.get("name","").casefold()==wanted: return c.get("display_panel","PUBLIC").upper(),c.get("alert_type","none")
  n=name.casefold()
  if n in ("#sos","sos"): return "SOS","sos-alarm"
  if n in ("private chat","private"): return "PRIVATE CHAT","ping"
