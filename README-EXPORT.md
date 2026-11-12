@@ -10,6 +10,41 @@ The exporter creates `~/.config/meshsdr/exporter.properties` on first message. S
 
 **Important protocol limitation:** the current desktop code only decrypts MeshCore Public and hashtag channels (hashtag keys are derived from the channel name). Arbitrary private-channel keys/direct messages are not currently decoded by the shared implementation. The receiver can store and display a private message only after the desktop decoder has actually decoded it; it cannot bypass MeshCore encryption. Configure matching hashtag names in the app/exporter and receiver channel mapping.
 
+## Install the GitHub Actions Debian packages
+
+Every push to this branch builds two ARM64 Debian packages on a GitHub-hosted ARM64 runner:
+
+- `meshsdr-receiver_*_arm64.deb`: FastAPI + SQLite receiver and web dashboard on TCP 9090.
+- `meshsdr_*_arm64.deb` (exact filename is shown in the Actions artifact): MeshSDR desktop app with the native ARM64 decoder.
+
+1. Open [GitHub Actions](https://github.com/lavaman2911/MeshSDR-Android/actions/workflows/export-messages-arm64.yml).
+2. Open the newest successful **MeshSDR ARM64 Debian packages** run.
+3. Download its `meshsdr-arm64-deb` artifact and extract the ZIP.
+4. Copy both `.deb` files to the Raspberry Pi and install:
+
+```bash
+sudo apt update
+sudo apt install ./meshsdr-receiver_*_arm64.deb ./meshsdr_*_arm64.deb
+```
+
+The receiver package starts its systemd service automatically. Open `http://PI-IP:9090/` from a browser. Its first-install API token is generated automatically; read it with:
+
+```bash
+sudo grep '^token:' /etc/meshsdr-receiver/config.yaml
+```
+
+Paste that token into `~/.config/meshsdr/exporter.properties` as `token=...`, then set `endpoint=http://localhost:9090/api/messages`. Restart the desktop exporter after changing the file.
+
+The desktop Debian package is the GUI app. For unattended headless radio capture, install the service template:
+
+```bash
+sudo cp desktop/meshsdr-exporter.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now meshsdr-exporter@$USER
+```
+
+The systemd unit runs `/opt/MeshSDR/bin/MeshSDR --server`; verify that path against the installed package if your Compose packaging version changes its install prefix.
+
 ## Build for Raspberry Pi 5
 
 Run on Raspberry Pi OS 64-bit, where `uname -m` is `aarch64`:
