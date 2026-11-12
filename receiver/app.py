@@ -61,23 +61,41 @@ app=FastAPI(title="MeshSDR Receiver",docs_url=None,redoc_url=None)
 queues=set(); qlock=threading.Lock()
 @app.on_event("startup")
 def start():
+ log.info("Receiver starting; config=%s", CFG)
  conn().close()
- if not channel_file().exists(): save_channels([{"name":"#public","key":"","display_panel":"PUBLIC","alert_type":"none"},{"name":"#sos","key":"","display_panel":"SOS","alert_type":"sos-alarm"},{"name":"private chat","key":"","display_panel":"PRIVATE CHAT","alert_type":"ping"}])
+ log.info("SQLite database ready: %s", C["database"])
+ log.info("Channel configuration: %s", channel_file())
+ if not channel_file().exists():
+  save_channels([{"name":"#public","key":"","display_panel":"PUBLIC","alert_type":"none"},{"name":"#sos","key":"","display_panel":"SOS","alert_type":"sos-alarm"},{"name":"private chat","key":"","display_panel":"PRIVATE CHAT","alert_type":"ping"}])
+
 @app.post("/api/messages")
 async def receive(p:dict,x_meshsdr_token:str|None=Header(default=None)):
  token=str(C.get("token",""))
- if not token or token=="CHANGE_ME" or not secrets.compare_digest(x_meshsdr_token or "",token):\n  log.warning("Rejected message POST: missing/invalid API token")\n  raise HTTPException(401,"Invalid token")
+ if not token or token=="CHANGE_ME" or not secrets.compare_digest(x_meshsdr_token or "",token):
+  log.warning("Rejected message POST: missing/invalid API token")
+  raise HTTPException(401,"Invalid token")
  for k in ("id","timestamp","channel_name","sender","text"):
-  if k not in p: raise HTTPException(422,"Missing "+k)
- try: datetime.fromisoformat(str(p["timestamp"]).replace("Z","+00:00"))
- except ValueError:\n  log.warning("Rejected message POST: invalid timestamp")\n  raise HTTPException(422,"timestamp must be ISO 8601")
+  if k not in p:
+   log.warning("Rejected message POST: missing required field %s", k)
+   raise HTTPException(422,"Missing "+k)
+ try:
+  datetime.fromisoformat(str(p["timestamp"]).replace("Z","+00:00"))
+ except ValueError:
+  log.warning("Rejected message POST: invalid timestamp")
+  raise HTTPException(422,"timestamp must be ISO 8601")
  m={"id":str(p["id"])[:128],"timestamp":str(p["timestamp"]),"channel_name":str(p["channel_name"])[:100],
  "channel_index":int(p.get("channel_index",0)),"sender":str(p["sender"])[:128],"text":str(p["text"])[:4000],
  "rssi":p.get("rssi"),"snr":p.get("snr"),"received_at":datetime.now(timezone.utc).isoformat()}
  d=conn()
- try: d.execute("INSERT OR IGNORE INTO messages VALUES(:id,:timestamp,:channel_name,:channel_index,:sender,:text,:rssi,:snr,:received_at)",m); d.commit()
- finally: d.close()
- panel,alert=classify(m["channel_name"]); event=m|{"panel":panel,"alert_type":alert}\n log.info("%s message id=%s channel=%s sender=%s panel=%s", "Stored" if inserted else "Duplicate ignored", m["id"][:12], m["channel_name"], m["sender"], panel)
+ try:
+  cur=d.execute("INSERT OR IGNORE INTO messages VALUES(:id,:timestamp,:channel_name,:channel_index,:sender,:text,:rssi,:snr,:received_at)",m)
+  d.commit()
+  inserted=cur.rowcount == 1
+ finally:
+  d.close()
+ panel,alert=classify(m["channel_name"])
+ event=m|{"panel":panel,"alert_type":alert}
+ log.info("%s message id=%s channel=%s sender=%s panel=%s", "Stored" if inserted else "Duplicate ignored", m["id"][:12], m["channel_name"], m["sender"], panel)
  with qlock: targets=list(queues)
  for q in targets:
   try:q.put_nowait(event)
