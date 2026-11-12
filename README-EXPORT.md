@@ -4,7 +4,7 @@ This branch extends the existing Kotlin/Compose Desktop target; it does not repl
 
 ## Desktop exporter
 
-On a MeshCore profile, CRC-verified GRP_TXT frames that the existing MeshCoreChannels decoder can authenticate are exported to `~/.config/meshsdr/messages.jsonl` and POSTed to `http://localhost:8080/api/messages`.
+On a MeshCore profile, CRC-verified GRP_TXT frames that the existing MeshCoreChannels decoder can authenticate are exported to `~/.config/meshsdr/messages.jsonl` and POSTed to `http://localhost:9090/api/messages`.
 
 The exporter creates `~/.config/meshsdr/exporter.properties` on first message. Set its `token` to the same token in the receiver's config.yaml. Set `endpoint` if the receiver is elsewhere, and `hashtags` to the hashtag channels that the existing decoder should attempt (for example `#sos`). Restrict the file with `chmod 600 ~/.config/meshsdr/exporter.properties`.
 
@@ -46,7 +46,7 @@ The desktop app uses RTL-SDR via USB and starts local `rtl_tcp` in its default c
 On first launch, the desktop app creates `~/.config/meshsdr/exporter.properties` with owner-only read/write permissions. Stop the desktop service before editing it:
 
 ```properties
-endpoint=http://localhost:8080/api/messages
+endpoint=http://localhost:9090/api/messages
 token=PASTE_THE_RECEIVER_TOKEN_HERE
 hashtags=#sos
 rtl_tcp_host=127.0.0.1
@@ -63,9 +63,13 @@ auto_start_rtl_tcp=true
 
 After editing, run `chmod 600 ~/.config/meshsdr/exporter.properties` and restart the service. For a remote rtl_tcp server, set `auto_start_rtl_tcp=false` and set host/port accordingly.
 
+## Receiver Debian package
+
+GitHub Actions builds a separate `meshsdr-receiver_*_arm64.deb` package. Install it on Raspberry Pi OS with `sudo apt install ./meshsdr-receiver_*_arm64.deb`. The dashboard is available at `http://PI-IP:9090/`; its API is `http://PI-IP:9090/api/messages`. The package generates a random token on first install; read it with `sudo grep '^token:' /etc/meshsdr-receiver/config.yaml` and copy it into the desktop exporter configuration.
+
 ## Receiver
 
-Follow [receiver/README.md](receiver/README.md). It installs a FastAPI + SQLite service on port 8080. Homarr iframe URL: `http://PI-IP:8080/`.
+Follow [receiver/README.md](receiver/README.md). It installs a FastAPI + SQLite service on port 9090. Homarr iframe URL: `http://PI-IP:9090/`.
 
 ## Smoke test
 
