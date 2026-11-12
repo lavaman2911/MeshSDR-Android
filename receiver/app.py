@@ -34,8 +34,15 @@ def classify(name):
 def server_alert(kind):
  o=C.get("server_alerts",{})
  if not o.get("enabled") or kind!="sos-alarm": return
+ alarm=BASE/"sos-alarm.wav"
+ if not alarm.exists():
+  with wave.open(str(alarm),"wb") as w:
+   w.setnchannels(1); w.setsampwidth(2); w.setframerate(22050); b=bytearray()
+   for i in range(44100):
+    t=i/22050; b.extend(struct.pack("<h",int(9500*math.sin(2*math.pi*(880 if int(t*4)%2==0 else 660)*t))))
+   w.writeframes(b)
  def run():
-  try: subprocess.Popen([o.get("command","aplay"),str(BASE/"sos-alarm.wav")],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+  try: subprocess.Popen([o.get("command","aplay"),str(alarm)],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
   except OSError: pass
   try: subprocess.Popen([o.get("tts_command","espeak-ng"),o.get("tts_text","SOS MESSAGE INCOMING READ NOW")],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
   except OSError: pass
@@ -65,7 +72,9 @@ async def receive(p:dict,x_meshsdr_token:str|None=Header(default=None)):
  m={"id":str(p["id"])[:128],"timestamp":str(p["timestamp"]),"channel_name":str(p["channel_name"])[:100],
  "channel_index":int(p.get("channel_index",0)),"sender":str(p["sender"])[:128],"text":str(p["text"])[:4000],
  "rssi":p.get("rssi"),"snr":p.get("snr"),"received_at":datetime.now(timezone.utc).isoformat()}
- with conn() as d: d.execute("INSERT OR IGNORE INTO messages VALUES(:id,:timestamp,:channel_name,:channel_index,:sender,:text,:rssi,:snr,:received_at)",m)
+ d=conn()
+ try: d.execute("INSERT OR IGNORE INTO messages VALUES(:id,:timestamp,:channel_name,:channel_index,:sender,:text,:rssi,:snr,:received_at)",m); d.commit()
+ finally: d.close()
  panel,alert=classify(m["channel_name"]); event=m|{"panel":panel,"alert_type":alert}
  with qlock: targets=list(queues)
  for q in targets:
@@ -75,7 +84,9 @@ async def receive(p:dict,x_meshsdr_token:str|None=Header(default=None)):
  return {"ok":True,"id":m["id"]}
 @app.get("/api/messages")
 async def recent(limit:int=100):
- with conn() as d: rows=d.execute("SELECT * FROM messages ORDER BY received_at DESC LIMIT ?",(max(1,min(limit,500)),)).fetchall()
+ d=conn()
+ try: rows=d.execute("SELECT * FROM messages ORDER BY received_at DESC LIMIT ?",(max(1,min(limit,500)),)).fetchall()
+ finally: d.close()
  out=[]
  for row in reversed(rows):
   m=dict(row);m["panel"],m["alert_type"]=classify(m["channel_name"]);out.append(m)
