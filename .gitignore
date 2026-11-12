@@ -1,3 +1,11 @@
 .gradle/
 build/
 __pycache__/
+
+# Local receiver/exporter secrets and runtime data
+receiver/config.yaml
+receiver/channels.yaml
+receiver/*.sqlite*
+receiver/*.db*
+receiver/.venv/
+receiver/__pycache__/
