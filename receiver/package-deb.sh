@@ -40,6 +40,7 @@ fi
 python3 -m venv /opt/meshsdr-receiver/.venv
 /opt/meshsdr-receiver/.venv/bin/pip install --disable-pip-version-check -r /opt/meshsdr-receiver/requirements.txt
 chown -R root:root /opt/meshsdr-receiver
+chown meshsdr:meshsdr /etc/meshsdr-receiver/config.yaml /etc/meshsdr-receiver/channels.yaml
 chmod 600 /etc/meshsdr-receiver/config.yaml /etc/meshsdr-receiver/channels.yaml
 systemctl daemon-reload
 systemctl enable meshsdr-receiver.service
