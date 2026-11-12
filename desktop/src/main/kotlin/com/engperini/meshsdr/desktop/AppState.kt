@@ -43,6 +43,7 @@ class AppState(private val keepTrying: Boolean = false) {
     private val prefs = Preferences.userRoot().node("com/engperini/meshsdr")
     private val timeFormat = SimpleDateFormat("HH:mm:ss", Locale.US)
     private val sampleRate = LoraProfile.SAMPLE_RATE
+    private val messageExporter by lazy { MessageExporter() }
 
     var portuguese by mutableStateOf(false)
         private set
@@ -400,6 +401,10 @@ class AppState(private val keepTrying: Boolean = false) {
 
     private fun onFrame(frame: LoraFrame) {
         if (frame.verified) decoded++ else detections++
+        if (frame.verified && active().protocol == Protocol.MESHCORE) {
+            runCatching { messageExporter.accept(frame.bytes, frame.snrDb) }
+                .onFailure { log("EXPORT", "Message export failed: ${it.message}") }
+        }
         val text = frame.describe(active(), ppm)
         val line = "[${synchronized(timeFormat) { timeFormat.format(Date(now())) }}] $text"
         link?.onMessage(line)
