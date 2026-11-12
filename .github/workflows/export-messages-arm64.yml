@@ -52,19 +52,27 @@ jobs:
         run: bash scripts/package-monitor-deb.sh
       - name: Validate receiver Python files
         run: python3 -m py_compile receiver/app.py receiver/test_messages.py
-      - name: Validate Debian package architecture
+      - name: Validate Debian package architecture and contents
+        shell: bash
         run: |
+          set -euxo pipefail
           mkdir -p dist
           cp build/deb/meshsdr-monitor_*_arm64.deb dist/
-          for pkg in dist/*.deb; do dpkg-deb -f "$pkg" Package Version Architecture; done
-          test -n "$(find dist -maxdepth 1 -name '*.deb' -print -quit)"
+          dpkg-deb -f dist/meshsdr-monitor_*_arm64.deb Package Version Architecture
           VERIFY="$(mktemp -d)"
+          trap 'rm -rf "$VERIFY"' EXIT
           dpkg-deb -x dist/meshsdr-monitor_*_arm64.deb "$VERIFY"
-          test -x "$VERIFY/opt/MeshSDR/bin/MeshSDR"
+          echo "=== Extracted package files ==="
+          find "$VERIFY/opt" "$VERIFY/lib/systemd/system" -maxdepth 6 -type f -print | sort
+          BIN="$(find "$VERIFY/opt" -type f -name MeshSDR -perm /111 -print -quit)"
+          test -n "$BIN"
           test -f "$VERIFY/opt/meshsdr-receiver/app.py"
           test -f "$VERIFY/lib/systemd/system/meshsdr-radio.service"
-          find "$VERIFY" -name libmeshsdr_lora.so -print -quit | grep -q .
-          rm -rf "$VERIFY"
+          LIB="$(find "$VERIFY" -type f -name libmeshsdr_lora.so -print -quit)"
+          test -n "$LIB"
+          file "$BIN" "$LIB"
+          readelf -h "$BIN" | grep -E 'AArch64|ARM'
+          readelf -h "$LIB" | grep -E 'AArch64|ARM'
       - name: Upload installable ARM64 packages
         uses: actions/upload-artifact@v4
         with:
