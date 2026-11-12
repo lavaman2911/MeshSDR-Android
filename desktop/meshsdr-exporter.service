@@ -1,0 +1,18 @@
+[Unit]
+Description=MeshSDR desktop headless receiver with JSON exporter
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=%i
+Environment=HOME=/home/%i
+Environment=JAVA_HOME=/usr/lib/jvm/java-17-openjdk-arm64
+ExecStart=/opt/meshsdr/bin/MeshSDR --server
+Restart=always
+RestartSec=5
+UMask=0077
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target
