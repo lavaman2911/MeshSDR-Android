@@ -9,7 +9,7 @@ User=meshsdr
 Group=meshsdr
 WorkingDirectory=/opt/meshsdr-receiver
 Environment=PYTHONUNBUFFERED=1
-ExecStart=/opt/meshsdr-receiver/.venv/bin/uvicorn app:app --host 0.0.0.0 --port 8080
+ExecStart=/opt/meshsdr-receiver/.venv/bin/uvicorn app:app --host 0.0.0.0 --port 9090
 Restart=on-failure
 RestartSec=3
 UMask=0077
