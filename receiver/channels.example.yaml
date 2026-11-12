@@ -1,0 +1,13 @@
+channels:
+  - name: "#public"
+    key: ""
+    display_panel: PUBLIC
+    alert_type: none
+  - name: "#sos"
+    key: ""
+    display_panel: SOS
+    alert_type: sos-alarm
+  - name: "private chat"
+    key: ""
+    display_panel: "PRIVATE CHAT"
+    alert_type: ping
