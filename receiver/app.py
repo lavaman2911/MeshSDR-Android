@@ -1,11 +1,11 @@
-import asyncio, json, os, secrets, sqlite3, subprocess, threading, wave, math, struct
+import asyncio, json, os, secrets, sqlite3, subprocess, threading, wave, math, struct, logging
 from pathlib import Path
 from datetime import datetime, timezone
 from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.responses import HTMLResponse, StreamingResponse
 import yaml
 
-BASE=Path(__file__).resolve().parent
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [MeshSDR] %(message)s")\nlog=logging.getLogger("meshsdr.receiver")\n\nBASE=Path(__file__).resolve().parent
 CFG=Path(os.getenv("MESHSDR_CONFIG",BASE/"config.yaml"))
 DEFAULT={"token":"CHANGE_ME","database":str(BASE/"messages.sqlite3"),"channels_file":str(BASE/"channels.yaml"),
  "server_alerts":{"enabled":False,"command":"aplay","tts_command":"espeak-ng","tts_text":"SOS MESSAGE INCOMING READ NOW"}}
@@ -66,18 +66,18 @@ def start():
 @app.post("/api/messages")
 async def receive(p:dict,x_meshsdr_token:str|None=Header(default=None)):
  token=str(C.get("token",""))
- if not token or token=="CHANGE_ME" or not secrets.compare_digest(x_meshsdr_token or "",token): raise HTTPException(401,"Invalid token")
+ if not token or token=="CHANGE_ME" or not secrets.compare_digest(x_meshsdr_token or "",token):\n  log.warning("Rejected message POST: missing/invalid API token")\n  raise HTTPException(401,"Invalid token")
  for k in ("id","timestamp","channel_name","sender","text"):
   if k not in p: raise HTTPException(422,"Missing "+k)
  try: datetime.fromisoformat(str(p["timestamp"]).replace("Z","+00:00"))
- except ValueError: raise HTTPException(422,"timestamp must be ISO 8601")
+ except ValueError:\n  log.warning("Rejected message POST: invalid timestamp")\n  raise HTTPException(422,"timestamp must be ISO 8601")
  m={"id":str(p["id"])[:128],"timestamp":str(p["timestamp"]),"channel_name":str(p["channel_name"])[:100],
  "channel_index":int(p.get("channel_index",0)),"sender":str(p["sender"])[:128],"text":str(p["text"])[:4000],
  "rssi":p.get("rssi"),"snr":p.get("snr"),"received_at":datetime.now(timezone.utc).isoformat()}
  d=conn()
  try: d.execute("INSERT OR IGNORE INTO messages VALUES(:id,:timestamp,:channel_name,:channel_index,:sender,:text,:rssi,:snr,:received_at)",m); d.commit()
  finally: d.close()
- panel,alert=classify(m["channel_name"]); event=m|{"panel":panel,"alert_type":alert}
+ panel,alert=classify(m["channel_name"]); event=m|{"panel":panel,"alert_type":alert}\n log.info("%s message id=%s channel=%s sender=%s panel=%s", "Stored" if inserted else "Duplicate ignored", m["id"][:12], m["channel_name"], m["sender"], panel)
  with qlock: targets=list(queues)
  for q in targets:
   try:q.put_nowait(event)
