@@ -5,7 +5,10 @@ from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.responses import HTMLResponse, StreamingResponse
 import yaml
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [MeshSDR] %(message)s")\nlog=logging.getLogger("meshsdr.receiver")\n\nBASE=Path(__file__).resolve().parent
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [MeshSDR] %(message)s")
+log=logging.getLogger("meshsdr.receiver")
+
+BASE=Path(__file__).resolve().parent
 CFG=Path(os.getenv("MESHSDR_CONFIG",BASE/"config.yaml"))
 DEFAULT={"token":"CHANGE_ME","database":str(BASE/"messages.sqlite3"),"channels_file":str(BASE/"channels.yaml"),
  "server_alerts":{"enabled":False,"command":"aplay","tts_command":"espeak-ng","tts_text":"SOS MESSAGE INCOMING READ NOW"}}
