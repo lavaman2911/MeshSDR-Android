@@ -31,10 +31,18 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y cmake build-essential dpkg-dev python3 python3-venv
-      - name: Compile ARM64 native LoRa PHY
+      - name: Compile ARM64 native LoRa PHY for Debian 12
         run: |
-          cmake -S desktop/native -B desktop/build-native -DCMAKE_BUILD_TYPE=Release
-          cmake --build desktop/build-native --parallel 2
+          # Build inside Debian 12 so the shared library only requires the
+          # glibc version available on the Raspberry Pi OS / Debian 12 host.
+          docker run --rm --platform linux/arm64 \
+            -v "${GITHUB_WORKSPACE}:/src" -w /src debian:12 bash -euxc '
+              apt-get update
+              DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends cmake build-essential openjdk-17-jdk-headless
+              export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-arm64
+              cmake -S desktop/native -B desktop/build-native -DCMAKE_BUILD_TYPE=Release
+              cmake --build desktop/build-native --parallel 2
+            '
           mkdir -p desktop/resources/linux-arm64
           install -m 755 desktop/build-native/libmeshsdr_lora.so desktop/resources/linux-arm64/libmeshsdr_lora.so
       - name: Build desktop application Debian package
@@ -75,6 +83,16 @@ jobs:
           file "$BIN" "$LIB"
           readelf -h "$BIN" | grep -E 'AArch64|ARM'
           readelf -h "$LIB" | grep -E 'AArch64|ARM'
+          echo "=== Required GLIBC symbol versions ==="
+          if readelf --version-info "$LIB" | grep -Eo 'GLIBC_[0-9]+\.[0-9]+' | sort -Vu | tail -n 1 | grep -qv '^GLIBC_2\.[0-9]*      - name: Upload installable ARM64 packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: meshsdr-pi-monitor-arm64
+          path: dist/*.deb
+          if-no-files-found: error
+          retention-days: 30
+ ; then exit 1; fi
+          ! readelf --version-info "$LIB" | grep -Eq 'GLIBC_2\.(3[3-9]|[4-9][0-9])'
       - name: Upload installable ARM64 packages
         uses: actions/upload-artifact@v4
         with:
