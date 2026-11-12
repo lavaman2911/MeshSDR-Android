@@ -46,19 +46,22 @@ jobs:
         env:
           MESHSDR_VERSION_NAME: ${{ inputs.version || '0.5.1' }}
         run: bash receiver/package-deb.sh
+      - name: Build combined Raspberry Pi monitor package
+        env:
+          MESHSDR_VERSION_NAME: ${{ inputs.version || '0.5.1' }}
+        run: bash scripts/package-monitor-deb.sh
       - name: Validate receiver Python files
         run: python3 -m py_compile receiver/app.py receiver/test_messages.py
       - name: Validate Debian package architecture
         run: |
           mkdir -p dist
-          find desktop/build/compose/binaries/main/deb -maxdepth 1 -name '*.deb' -exec cp {} dist/ \;
-          cp build/deb/*.deb dist/
+          cp build/deb/meshsdr-monitor_*_arm64.deb dist/
           for pkg in dist/*.deb; do dpkg-deb -f "$pkg" Package Version Architecture; done
           test -n "$(find dist -maxdepth 1 -name '*.deb' -print -quit)"
       - name: Upload installable ARM64 packages
         uses: actions/upload-artifact@v4
         with:
-          name: meshsdr-arm64-deb
+          name: meshsdr-pi-monitor-arm64
           path: dist/*.deb
           if-no-files-found: error
           retention-days: 30
