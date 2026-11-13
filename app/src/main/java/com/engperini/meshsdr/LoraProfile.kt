@@ -46,8 +46,10 @@ data class LoraProfile(
         // Brazil use 923.125 MHz, 62.5 kHz, SF8, CR 4/8.
         val MESHTASTIC_BR = LoraProfile("meshtastic-br", "Meshtastic BR (ANZ LongFast)", 919_875_000, 11, 250_000, 1, 0x2B, Protocol.MESHTASTIC)
         val MESHCORE_BR = LoraProfile("meshcore-br", "MeshCore BR", 923_125_000, 8, 62_500, 4, 0x12, Protocol.MESHCORE)
+        // Netherlands / EU 868 MHz MeshCore starting profile. All radio values remain editable in the UI.
+        val MESHCORE_NL = LoraProfile("meshcore-nl", "MeshCore Netherlands", 869_618_000, 7, 62_500, 4, 0x12, Protocol.MESHCORE)
         val MESHTASTIC_US = LoraProfile("meshtastic-us", "Meshtastic US (LongFast)", 906_875_000, 11, 250_000, 1, 0x2B, Protocol.MESHTASTIC)
-        val ALL = listOf(MESHTASTIC_BR, MESHCORE_BR, MESHTASTIC_US)
+        val ALL = listOf(MESHTASTIC_BR, MESHCORE_BR, MESHCORE_NL, MESHTASTIC_US)
         val DEFAULT = MESHTASTIC_BR
 
         const val GENERIC_ID = "lora"

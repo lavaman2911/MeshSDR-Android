@@ -34,9 +34,11 @@ LoRa radio, a PC or GNU Radio.
   (the public LongFast channel is recognised), hops taken, relay node and ACK request.
 - **Any sync word.** It reports `0x2B` (Meshtastic), `0x12` (private / MeshCore) and
   `0x34` (LoRaWAN), and flags a sync word that doesn't match the selected profile.
-- **Ready-made profiles.** Meshtastic BR (ANZ LongFast, 919.875 MHz) and MeshCore BR
-  (923.125 MHz, SF8 / BW 62.5 kHz) for Brazil, plus Meshtastic US (906.875 MHz). The
-  frequency can be edited.
+- **Ready-made profiles.** Meshtastic BR (ANZ LongFast, 919.875 MHz), MeshCore BR
+  (923.125 MHz, SF8 / BW 62.5 kHz), **MeshCore Netherlands** (869.618 MHz, SF7 / BW
+  62.5 kHz / CR 4/8), plus Meshtastic US (906.875 MHz). Frequency can be edited.
+  The Netherlands MeshCore profile also exposes editable SF7–SF12 and supported bandwidth
+  settings while keeping MeshCore packet interpretation enabled.
 - **Generic LoRa mode.** Listen on any frequency for any LoRa transmission: pick one SF or
   run **SF7–12 at once**, type the bandwidth (default 125 kHz, the common LoRa IoT setting), and see the frames as raw bytes, without
   assuming Meshtastic or MeshCore.

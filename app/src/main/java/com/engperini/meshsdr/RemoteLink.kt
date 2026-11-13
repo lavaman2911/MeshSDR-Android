@@ -77,7 +77,12 @@ data class RemoteState(
     /** The profile in use, with its frequency. */
     fun profile(): LoraProfile =
         if (profileId == LoraProfile.GENERIC_ID) LoraProfile.generic(frequencyHz, genericSf, genericBw)
-        else LoraProfile.byId(profileId).copy(frequencyHz = frequencyHz)
+        else {
+            val base = LoraProfile.byId(profileId).copy(frequencyHz = frequencyHz)
+            if (profileId == LoraProfile.MESHCORE_NL.id)
+                base.copy(spreadingFactor = genericSf, bandwidthHz = genericBw)
+            else base
+        }
 
     fun toLine(): String = RemoteLink.line(
         "t" to "state", "status" to status, "profile" to profileId, "freq" to frequencyHz,
